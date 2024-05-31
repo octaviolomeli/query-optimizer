@@ -5,16 +5,17 @@ import edu.berkeley.cs186.database.query.JoinOperator;
 import edu.berkeley.cs186.database.query.QueryOperator;
 import edu.berkeley.cs186.database.query.SortOperator;
 import edu.berkeley.cs186.database.table.Record;
+import java.lang.Math;
 
 import java.util.*;
 
 public class LeapfrogOperator extends JoinOperator {
     // Both relations should be sorted
     public LeapfrogOperator(QueryOperator leftSource,
-                             QueryOperator rightSource,
-                             String leftColumnName,
-                             String rightColumnName,
-                             TransactionContext transaction) {
+                            QueryOperator rightSource,
+                            String leftColumnName,
+                            String rightColumnName,
+                            TransactionContext transaction) {
         super(prepareLeft(transaction, leftSource, leftColumnName),
                 prepareRight(transaction, rightSource, rightColumnName),
                 leftColumnName, rightColumnName, transaction, JoinType.LEAPFROG);
@@ -40,8 +41,8 @@ public class LeapfrogOperator extends JoinOperator {
      * operator.
      */
     private static QueryOperator prepareRight(TransactionContext transaction,
-                                             QueryOperator rightSource,
-                                             String rightColumn) {
+                                              QueryOperator rightSource,
+                                              String rightColumn) {
         rightColumn = rightSource.getSchema().matchFieldName(rightColumn);
         if (rightSource.sortedBy().contains(rightColumn)) return rightSource;
         return new SortOperator(transaction, rightSource, rightColumn);
@@ -78,6 +79,8 @@ public class LeapfrogOperator extends JoinOperator {
             rightIterator = new LeapfrogIterator(getRightSource(), lfo);
 
             iters = new LeapfrogIterator[2];
+            iters[0] = leftIterator;
+            iters[1] = rightIterator;
             leapfrog_init();
         }
 
@@ -130,9 +133,13 @@ public class LeapfrogOperator extends JoinOperator {
         }
 
         public Record leapfrog_search() {
-            Record y = iters[(p - 1) % 2].key(); // Max key of any iter
+            Record y = iters[Math.floorMod(p - 1, 2)].key(); // Max key of any iter
             while (true) {
                 Record x = iters[p].key(); // Least key of any iterator
+                if (x == null) {
+                    this.atEnd = true;
+                    return null;
+                }
                 if (compare(x, y) == 0) {
                     // All iters at same key
                     return x.concat(y);
@@ -143,7 +150,7 @@ public class LeapfrogOperator extends JoinOperator {
                         return null;
                     } else {
                         y = iters[p].key();
-                        p = (p + 1) % 2;
+                        p = Math.floorMod(p + 1, 2);
                     }
                 }
             }
@@ -155,7 +162,7 @@ public class LeapfrogOperator extends JoinOperator {
                 this.atEnd = true;
                 return null;
             } else {
-                p = (p + 1) % 2;
+                p = Math.floorMod(p + 1, 2);
                 return leapfrog_search();
             }
         }
@@ -196,7 +203,7 @@ public class LeapfrogOperator extends JoinOperator {
         // Proceeds to the next key
         public void next() {
             if (index >= sourceList.size()) {
-                throw new NoSuchElementException();
+                return;
             }
             index++;
         }
@@ -208,16 +215,22 @@ public class LeapfrogOperator extends JoinOperator {
             Sought key must be ≥ the key at the current position.
         */
         public void seek(Record seekKey) {
+            if (seekKey == null || key() == null) {
+                return;
+            }
             if (outsideOperator.compare(seekKey, key()) < 0) {
                 return;
             }
-            while (!atEnd() || outsideOperator.compare(key(), seekKey) >= 0) {
+            while (!atEnd() && outsideOperator.compare(key(), seekKey) < 0) {
                 index++;
             }
         }
 
         // Returns the key at the current iterator position.
         public Record key() {
+            if (atEnd()) {
+                return null;
+            }
             return sourceList.get(index);
         }
     }
