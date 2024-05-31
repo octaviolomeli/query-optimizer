@@ -6,6 +6,7 @@ import edu.berkeley.cs186.database.table.Record;
 import edu.berkeley.cs186.database.table.Schema;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class TestUtils {
@@ -26,6 +27,23 @@ public class TestUtils {
         List<Record> records = new ArrayList<>();
         for (int i = 0; i < numRecords; i++)
             records.add(createRecordWithAllTypes());
+        return new TestSourceOperator(records, schema);
+    }
+
+    public static TestSourceOperator createIncreasingSourceWithAllTypes(int numRecords) {
+        Schema schema = createSchemaWithAllTypes();
+        List<Record> records = new ArrayList<>();
+        for (int i = 1; i <= numRecords; i++)
+            records.add(createRecordWithAllTypesWithValue(i));
+        return new TestSourceOperator(records, schema);
+    }
+
+    public static TestSourceOperator createMixedOrderSourceWithAllTypes(List<Integer> mixedNumbers) {
+        Schema schema = createSchemaWithAllTypes();
+        List<Record> records = new ArrayList<>();
+        for (Integer number : mixedNumbers) {
+            records.add(createRecordWithAllTypesWithValue(number));
+        }
         return new TestSourceOperator(records, schema);
     }
 

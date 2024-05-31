@@ -4,14 +4,13 @@ import edu.berkeley.cs186.database.Database;
 import edu.berkeley.cs186.database.TestUtils;
 import edu.berkeley.cs186.database.TimeoutScaling;
 import edu.berkeley.cs186.database.Transaction;
-import edu.berkeley.cs186.database.categories.HiddenTests;
 import edu.berkeley.cs186.database.categories.Proj3Part1Tests;
 import edu.berkeley.cs186.database.categories.Proj3Tests;
 import edu.berkeley.cs186.database.categories.PublicTests;
 import edu.berkeley.cs186.database.concurrency.DummyLockContext;
 import edu.berkeley.cs186.database.io.DiskSpaceManager;
 import edu.berkeley.cs186.database.memory.Page;
-import edu.berkeley.cs186.database.query.join.SortMergeOperator;
+import edu.berkeley.cs186.database.query.join.LeapfrogOperator;
 import edu.berkeley.cs186.database.table.Record;
 import org.junit.After;
 import org.junit.Before;
@@ -30,7 +29,7 @@ import java.util.*;
 import static org.junit.Assert.*;
 
 @Category({Proj3Tests.class, Proj3Part1Tests.class})
-public class TestLeapfrog {
+public class TestLeapFrogJoin {
     private Database d;
     private long numIOs;
     private QueryOperator leftSourceOperator;
@@ -42,7 +41,7 @@ public class TestLeapfrog {
 
     @Before
     public void setup() throws IOException {
-        File tempDir = tempFolder.newFolder("smjTest");
+        File tempDir = tempFolder.newFolder("leapfrogTest");
         d = new Database(tempDir.getAbsolutePath(), 256);
         d.setWorkMem(5); // B=5
         d.waitAllTransactions();
@@ -108,114 +107,140 @@ public class TestLeapfrog {
 
     @Test
     @Category(PublicTests.class)
-    public void testSimpleSortMergeJoin() {
+    public void testSimpleLeapFrogJoin() {
+        d.setWorkMem(5); // B=5
+        try(Transaction transaction = d.beginTransaction()) {
+            setSourceOperators(
+                    TestUtils.createIncreasingSourceWithAllTypes(100),
+                    TestUtils.createIncreasingSourceWithAllTypes(100),
+                    transaction
+            );
+
+            JoinOperator joinOperator = new LeapfrogOperator(
+                    leftSourceOperator, rightSourceOperator, "int", "int",
+                    transaction.getTransactionContext());
+
+            Iterator<Record> outputIterator = joinOperator.iterator();
+
+            int numRecords = 0;
+            Record record1 = TestUtils.createRecordWithAllTypesWithValue(1);
+            Record record2 = TestUtils.createRecordWithAllTypesWithValue(1);
+            Record expected = record1.concat(record2);
+
+            while (outputIterator.hasNext() && numRecords < 100) {
+                assertEquals("mismatch at record " + numRecords, expected, outputIterator.next());
+                numRecords++;
+                record1 = TestUtils.createRecordWithAllTypesWithValue(numRecords + 1);
+                record2 = TestUtils.createRecordWithAllTypesWithValue(numRecords + 1);
+                expected = record1.concat(record2);
+            }
+
+            assertFalse("too many records", outputIterator.hasNext());
+            outputIterator.hasNext();
+            assertEquals("too few records", 100, numRecords);
+        }
+    }
+
+    @Test
+    public void testEmptyWithEmptyLeapFrogJoin() {
+        d.setWorkMem(5); // B=5
+        try(Transaction transaction = d.beginTransaction()) {
+            setSourceOperators(
+                    TestUtils.createSourceWithInts(Collections.emptyList()),
+                    TestUtils.createSourceWithInts(Collections.emptyList()),
+                    transaction
+            );
+            startCountIOs();
+
+            JoinOperator joinOperator = new LeapfrogOperator(
+                    leftSourceOperator, rightSourceOperator, "int", "int",
+                    transaction.getTransactionContext());
+            checkIOs(0);
+            Iterator<Record> outputIterator = joinOperator.iterator();
+            assertFalse("too many records", outputIterator.hasNext());
+        }
+    }
+
+    @Test
+    public void testNonEmptyWithEmptyLeapFrogJoin() {
+        // Joins a non-empty table with an empty table. Expected behavior is
+        // that iterator is created without error, and hasNext() immediately
+        // returns false.
         d.setWorkMem(5); // B=5
         try(Transaction transaction = d.beginTransaction()) {
             setSourceOperators(
                     TestUtils.createSourceWithAllTypes(100),
+                    TestUtils.createSourceWithInts(Collections.emptyList()),
+                    transaction
+            );
+            startCountIOs();
+            JoinOperator joinOperator = new LeapfrogOperator(leftSourceOperator, rightSourceOperator,
+                    "int", "int", transaction.getTransactionContext());
+            checkIOs(0);
+            Iterator<Record> outputIterator = joinOperator.iterator();
+            assertFalse("too many records", outputIterator.hasNext());
+        }
+    }
+
+    @Test
+    public void testEmptyWithNonEmptyLeapFrogJoin() {
+        // Joins an empty table with a non-empty table. Expected behavior is
+        // that iterator is created without error, and hasNext() immediately
+        // returns false.
+        d.setWorkMem(5); // B=5
+        try(Transaction transaction = d.beginTransaction()) {
+            setSourceOperators(
+                    TestUtils.createSourceWithInts(Collections.emptyList()),
                     TestUtils.createSourceWithAllTypes(100),
                     transaction
             );
-
             startCountIOs();
-
-            JoinOperator joinOperator = new SortMergeOperator(
-                    leftSourceOperator, rightSourceOperator, "int", "int",
-                    transaction.getTransactionContext());
+            JoinOperator joinOperator = new LeapfrogOperator(leftSourceOperator, rightSourceOperator,
+                    "int", "int", transaction.getTransactionContext());
             checkIOs(0);
-
             Iterator<Record> outputIterator = joinOperator.iterator();
-            checkIOs(2 * (1 + (1 + TestSortOperator.NEW_RUN_IOS)));
-
-            int numRecords = 0;
-            Record expected = new Record(true, 1, "a", 1.2f, true, 1, "a", 1.2f);
-
-            while (outputIterator.hasNext() && numRecords < 100 * 100) {
-                assertEquals("mismatch at record " + numRecords, expected, outputIterator.next());
-                numRecords++;
-            }
-            checkIOs(0);
-
             assertFalse("too many records", outputIterator.hasNext());
-            outputIterator.hasNext();
-            assertEquals("too few records", 100 * 100, numRecords);
         }
     }
 
     @Test
     @Category(PublicTests.class)
-    public void testSortMergeJoinUnsortedInputs()  {
+    public void testLeapFrogUnsortedInputs()  {
         d.setWorkMem(3); // B=3
         try(Transaction transaction = d.beginTransaction()) {
-            transaction.createTable(TestUtils.createSchemaWithAllTypes(), "leftTable");
-            transaction.createTable(TestUtils.createSchemaWithAllTypes(), "rightTable");
-            pinPage(1, 1);
-            pinPage(1, 2);
-
-            Record r1 = TestUtils.createRecordWithAllTypesWithValue(1);
-            Record r2 = TestUtils.createRecordWithAllTypesWithValue(2);
-            Record r3 = TestUtils.createRecordWithAllTypesWithValue(3);
-            Record r4 = TestUtils.createRecordWithAllTypesWithValue(4);
-
-            Record expectedRecord1 = r1.concat(r1);
-            Record expectedRecord2 = r2.concat(r2);
-            Record expectedRecord3 = r3.concat(r3);
-            Record expectedRecord4 = r4.concat(r4);
-
-            List<Record> leftTableRecords = new ArrayList<>();
-            List<Record> rightTableRecords = new ArrayList<>();
-            for (int i = 0; i < 800; i++) {
-                Record r;
-                if (i % 4 == 0) r = r1;
-                else if (i % 4 == 1) r = r2;
-                else if (i % 4 == 2) r = r3;
-                else r = r4;
-                leftTableRecords.add(r);
-                rightTableRecords.add(r);
+            // Create random order of [1, ..., 800]
+            List<Integer> numbers = new ArrayList<>();
+            for (int i = 1; i <= 800; i++) {
+                numbers.add(i);
             }
-            Collections.shuffle(leftTableRecords, new Random(10));
-            Collections.shuffle(rightTableRecords, new Random(20));
-            for (int i = 0; i < 800; i++) {
-                transaction.insert("leftTable", leftTableRecords.get(i));
-                transaction.insert("rightTable", rightTableRecords.get(i));
-            }
+            Collections.shuffle(numbers);
 
             setSourceOperators(
-                    new SequentialScanOperator(transaction.getTransactionContext(), "leftTable"),
-                    new SequentialScanOperator(transaction.getTransactionContext(), "rightTable")
+                    TestUtils.createMixedOrderSourceWithAllTypes(numbers),
+                    TestUtils.createMixedOrderSourceWithAllTypes(numbers),
+                    transaction
             );
 
-            startCountIOs();
-
-            JoinOperator joinOperator = new SortMergeOperator(leftSourceOperator, rightSourceOperator, "int",
+            JoinOperator joinOperator = new LeapfrogOperator(leftSourceOperator, rightSourceOperator, "int",
                     "int",
                     transaction.getTransactionContext());
-            checkIOs(0);
 
             Iterator<Record> outputIterator = joinOperator.iterator();
-            checkIOs(2 * (2 + (2 + TestSortOperator.NEW_RUN_IOS)));
 
             int numRecords = 0;
-            Record expectedRecord;
+            Record record1 = TestUtils.createRecordWithAllTypesWithValue(1);
+            Record record2 = TestUtils.createRecordWithAllTypesWithValue(1);
+            Record expected = record1.concat(record2);
 
-            while (outputIterator.hasNext() && numRecords < 400 * 400) {
-                if (numRecords < (400 * 400 / 4)) {
-                    expectedRecord = expectedRecord1;
-                } else if (numRecords < (400 * 400 / 2)) {
-                    expectedRecord = expectedRecord2;
-                } else if (numRecords < 400 * 400 - (400 * 400 / 4)) {
-                    expectedRecord = expectedRecord3;
-                } else {
-                    expectedRecord = expectedRecord4;
-                }
-                Record r = outputIterator.next();
-                assertEquals("mismatch at record " + numRecords, expectedRecord, r);
+            while (outputIterator.hasNext() && numRecords < 800) {
+                assertEquals("mismatch at record " + numRecords, expected, outputIterator.next());
                 numRecords++;
+                record1 = TestUtils.createRecordWithAllTypesWithValue(numRecords + 1);
+                record2 = TestUtils.createRecordWithAllTypesWithValue(numRecords + 1);
+                expected = record1.concat(record2);
             }
-            checkIOs(0);
-
             assertFalse("too many records", outputIterator.hasNext());
-            assertEquals("too few records", 400 * 400, numRecords);
+            assertEquals("too few records", 800, numRecords);
         }
     }
 
