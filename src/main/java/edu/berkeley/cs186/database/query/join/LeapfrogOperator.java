@@ -221,9 +221,20 @@ public class LeapfrogOperator extends JoinOperator {
             if (outsideOperator.compare(seekKey, key()) < 0) {
                 return;
             }
-            while (!atEnd() && outsideOperator.compare(key(), seekKey) < 0) {
-                index++;
+
+            // Perform binary search to find the smallest element greater than or equal to seekKey
+            int low = index;
+            int high = sourceList.size() - 1;
+
+            while (low <= high) {
+                int mid = (low + high) / 2;
+                if (outsideOperator.compare(sourceList.get(mid), seekKey) < 0) {
+                    low = mid + 1;
+                } else {
+                    high = mid - 1;
+                }
             }
+            index = low;
         }
 
         // Returns the key at the current iterator position.
