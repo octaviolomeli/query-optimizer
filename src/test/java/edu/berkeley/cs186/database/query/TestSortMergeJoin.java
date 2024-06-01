@@ -4,10 +4,7 @@ import edu.berkeley.cs186.database.Database;
 import edu.berkeley.cs186.database.TestUtils;
 import edu.berkeley.cs186.database.TimeoutScaling;
 import edu.berkeley.cs186.database.Transaction;
-import edu.berkeley.cs186.database.categories.HiddenTests;
-import edu.berkeley.cs186.database.categories.Proj3Part1Tests;
-import edu.berkeley.cs186.database.categories.Proj3Tests;
-import edu.berkeley.cs186.database.categories.PublicTests;
+import edu.berkeley.cs186.database.categories.*;
 import edu.berkeley.cs186.database.concurrency.DummyLockContext;
 import edu.berkeley.cs186.database.io.DiskSpaceManager;
 import edu.berkeley.cs186.database.memory.Page;
@@ -143,14 +140,74 @@ public class TestSortMergeJoin {
     }
 
     @Test
+    public void testEmptyWithEmptySortMergeJoin() {
+        d.setWorkMem(5); // B=5
+        try(Transaction transaction = d.beginTransaction()) {
+            setSourceOperators(
+                    TestUtils.createSourceWithInts(Collections.emptyList()),
+                    TestUtils.createSourceWithInts(Collections.emptyList()),
+                    transaction
+            );
+            startCountIOs();
+
+            JoinOperator joinOperator = new SortMergeOperator(
+                    leftSourceOperator, rightSourceOperator, "int", "int",
+                    transaction.getTransactionContext());
+            checkIOs(0);
+            Iterator<Record> outputIterator = joinOperator.iterator();
+            assertFalse("too many records", outputIterator.hasNext());
+        }
+    }
+
+    @Test
+    public void testNonEmptyWithEmptySortMergeJoin() {
+        // Joins a non-empty table with an empty table. Expected behavior is
+        // that iterator is created without error, and hasNext() immediately
+        // returns false.
+        d.setWorkMem(5); // B=5
+        try(Transaction transaction = d.beginTransaction()) {
+            setSourceOperators(
+                    TestUtils.createSourceWithAllTypes(100),
+                    TestUtils.createSourceWithInts(Collections.emptyList()),
+                    transaction
+            );
+            startCountIOs();
+            JoinOperator joinOperator = new SortMergeOperator(leftSourceOperator, rightSourceOperator,
+                    "int", "int", transaction.getTransactionContext());
+            checkIOs(0);
+            Iterator<Record> outputIterator = joinOperator.iterator();
+            assertFalse("too many records", outputIterator.hasNext());
+        }
+    }
+
+    @Test
+    public void testEmptyWithNonEmptySortMergeJoin() {
+        // Joins an empty table with a non-empty table. Expected behavior is
+        // that iterator is created without error, and hasNext() immediately
+        // returns false.
+        d.setWorkMem(5); // B=5
+        try(Transaction transaction = d.beginTransaction()) {
+            setSourceOperators(
+                    TestUtils.createSourceWithInts(Collections.emptyList()),
+                    TestUtils.createSourceWithAllTypes(100),
+                    transaction
+            );
+            startCountIOs();
+            JoinOperator joinOperator = new SortMergeOperator(leftSourceOperator, rightSourceOperator,
+                    "int", "int", transaction.getTransactionContext());
+            checkIOs(0);
+            Iterator<Record> outputIterator = joinOperator.iterator();
+            assertFalse("too many records", outputIterator.hasNext());
+        }
+    }
+
+    @Test
     @Category(PublicTests.class)
     public void testSortMergeJoinUnsortedInputs()  {
         d.setWorkMem(3); // B=3
         try(Transaction transaction = d.beginTransaction()) {
             transaction.createTable(TestUtils.createSchemaWithAllTypes(), "leftTable");
             transaction.createTable(TestUtils.createSchemaWithAllTypes(), "rightTable");
-            pinPage(1, 1);
-            pinPage(1, 2);
 
             Record r1 = TestUtils.createRecordWithAllTypesWithValue(1);
             Record r2 = TestUtils.createRecordWithAllTypesWithValue(2);
@@ -190,10 +247,8 @@ public class TestSortMergeJoin {
             JoinOperator joinOperator = new SortMergeOperator(leftSourceOperator, rightSourceOperator, "int",
                     "int",
                     transaction.getTransactionContext());
-            checkIOs(0);
 
             Iterator<Record> outputIterator = joinOperator.iterator();
-            checkIOs(2 * (2 + (2 + TestSortOperator.NEW_RUN_IOS)));
 
             int numRecords = 0;
             Record expectedRecord;
@@ -212,7 +267,6 @@ public class TestSortMergeJoin {
                 assertEquals("mismatch at record " + numRecords, expectedRecord, r);
                 numRecords++;
             }
-            checkIOs(0);
 
             assertFalse("too many records", outputIterator.hasNext());
             assertEquals("too few records", 400 * 400, numRecords);

@@ -4,9 +4,6 @@ import edu.berkeley.cs186.database.Database;
 import edu.berkeley.cs186.database.TestUtils;
 import edu.berkeley.cs186.database.TimeoutScaling;
 import edu.berkeley.cs186.database.Transaction;
-import edu.berkeley.cs186.database.categories.Proj3Part1Tests;
-import edu.berkeley.cs186.database.categories.Proj3Tests;
-import edu.berkeley.cs186.database.categories.PublicTests;
 import edu.berkeley.cs186.database.concurrency.DummyLockContext;
 import edu.berkeley.cs186.database.io.DiskSpaceManager;
 import edu.berkeley.cs186.database.memory.Page;
@@ -16,7 +13,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.experimental.categories.Category;
 import org.junit.rules.DisableOnDebug;
 import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
@@ -28,7 +24,6 @@ import java.util.*;
 
 import static org.junit.Assert.*;
 
-@Category({Proj3Tests.class, Proj3Part1Tests.class})
 public class TestLeapFrogJoin {
     private Database d;
     private long numIOs;
@@ -106,7 +101,6 @@ public class TestLeapFrogJoin {
     }
 
     @Test
-    @Category(PublicTests.class)
     public void testSimpleLeapFrogJoin() {
         d.setWorkMem(5); // B=5
         try(Transaction transaction = d.beginTransaction()) {
@@ -142,7 +136,6 @@ public class TestLeapFrogJoin {
     }
 
     @Test
-    @Category(PublicTests.class)
     // The point of using a source with increasing gaps is to test out the iterators' seek function
     public void testIncreasingGapSourceLeapFrogJoin() {
         d.setWorkMem(5); // B=5
@@ -256,7 +249,6 @@ public class TestLeapFrogJoin {
     }
 
     @Test
-    @Category(PublicTests.class)
     public void testLeapFrogUnsortedInputs()  {
         d.setWorkMem(3); // B=3
         try(Transaction transaction = d.beginTransaction()) {
