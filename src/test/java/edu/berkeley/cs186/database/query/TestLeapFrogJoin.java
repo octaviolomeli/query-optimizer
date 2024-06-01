@@ -142,6 +142,58 @@ public class TestLeapFrogJoin {
     }
 
     @Test
+    @Category(PublicTests.class)
+    // The point of using a source with increasing gaps is to test out the iterators' seek function
+    public void testIncreasingGapSourceLeapFrogJoin() {
+        d.setWorkMem(5); // B=5
+
+        try(Transaction transaction = d.beginTransaction()) {
+            setSourceOperators(
+                    TestUtils.createIncreasingJumpSourceWithInts(50, 3),
+                    TestUtils.createIncreasingJumpSourceWithInts(25, 9),
+                    transaction
+            );
+            List<Integer> numbersInSource1 = new ArrayList<>();
+            List<Integer> numbersInSource2 = new ArrayList<>();
+            List<Integer> expectedValues = new ArrayList<>();
+
+            for (int i = 1; i <= 50 * 3; i+= 3) numbersInSource1.add(i);
+            for (int i = 1; i <= 25 * 9; i+= 9) numbersInSource2.add(i);
+
+            for (int i = 0; i < numbersInSource1.size(); i++) {
+                for (int j = 0; j < numbersInSource2.size(); j++) {
+                    if (numbersInSource1.get(i).equals(numbersInSource2.get(j)) ) {
+                        expectedValues.add(numbersInSource1.get(i));
+                    }
+                }
+            }
+
+            JoinOperator joinOperator = new LeapfrogOperator(
+                    leftSourceOperator, rightSourceOperator, "int", "int",
+                    transaction.getTransactionContext());
+
+            Iterator<Record> outputIterator = joinOperator.iterator();
+
+            int numRecords = 0;
+            Record record1;
+            Record record2;
+            Record expected;
+
+            while (outputIterator.hasNext() && numRecords < expectedValues.size()) {
+                record1 = new Record(expectedValues.get(numRecords));
+                record2 = new Record(expectedValues.get(numRecords));
+                expected = record1.concat(record2);
+                assertEquals("mismatch at record " + numRecords, expected, outputIterator.next());
+                numRecords++;
+            }
+
+            assertFalse("too many records", outputIterator.hasNext());
+            outputIterator.hasNext();
+            assertEquals("too few records", expectedValues.size(), numRecords);
+        }
+    }
+
+    @Test
     public void testEmptyWithEmptyLeapFrogJoin() {
         d.setWorkMem(5); // B=5
         try(Transaction transaction = d.beginTransaction()) {
@@ -216,8 +268,8 @@ public class TestLeapFrogJoin {
             Collections.shuffle(numbers);
 
             setSourceOperators(
-                    TestUtils.createMixedOrderSourceWithAllTypes(numbers),
-                    TestUtils.createMixedOrderSourceWithAllTypes(numbers),
+                    TestUtils.createSourceWithInts(numbers),
+                    TestUtils.createSourceWithInts(numbers),
                     transaction
             );
 
@@ -228,15 +280,15 @@ public class TestLeapFrogJoin {
             Iterator<Record> outputIterator = joinOperator.iterator();
 
             int numRecords = 0;
-            Record record1 = TestUtils.createRecordWithAllTypesWithValue(1);
-            Record record2 = TestUtils.createRecordWithAllTypesWithValue(1);
+            Record record1 = new Record(1);
+            Record record2 = new Record(1);
             Record expected = record1.concat(record2);
 
             while (outputIterator.hasNext() && numRecords < 800) {
                 assertEquals("mismatch at record " + numRecords, expected, outputIterator.next());
                 numRecords++;
-                record1 = TestUtils.createRecordWithAllTypesWithValue(numRecords + 1);
-                record2 = TestUtils.createRecordWithAllTypesWithValue(numRecords + 1);
+                record1 = new Record(numRecords + 1);
+                record2 = new Record(numRecords + 1);
                 expected = record1.concat(record2);
             }
             assertFalse("too many records", outputIterator.hasNext());

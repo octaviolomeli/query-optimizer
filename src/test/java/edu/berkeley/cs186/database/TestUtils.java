@@ -38,12 +38,11 @@ public class TestUtils {
         return new TestSourceOperator(records, schema);
     }
 
-    public static TestSourceOperator createMixedOrderSourceWithAllTypes(List<Integer> mixedNumbers) {
-        Schema schema = createSchemaWithAllTypes();
+    public static TestSourceOperator createIncreasingJumpSourceWithInts(int numRecords, int jump) {
+        Schema schema = new Schema().add("int", Type.intType());
         List<Record> records = new ArrayList<>();
-        for (Integer number : mixedNumbers) {
-            records.add(createRecordWithAllTypesWithValue(number));
-        }
+        for (int i = 1; i <= numRecords * jump; i+= jump)
+            records.add(new Record(i));
         return new TestSourceOperator(records, schema);
     }
 
