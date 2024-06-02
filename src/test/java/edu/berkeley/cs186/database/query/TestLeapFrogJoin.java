@@ -288,4 +288,33 @@ public class TestLeapFrogJoin {
         }
     }
 
+    @Test
+    public void testNoMatchesLeapFrogJoin() {
+        d.setWorkMem(5); // B=5
+        try(Transaction transaction = d.beginTransaction()) {
+
+            List<Integer> source1 = new ArrayList<>();
+            List<Integer> source2 = new ArrayList<>();
+            for (int i = 0; i < 25; i++) source1.add(2);
+            for (int j = 0; j < 25; j++) source2.add(3);
+
+            setSourceOperators(
+                    TestUtils.createSourceWithInts(source1),
+                    TestUtils.createSourceWithInts(source2),
+                    transaction
+            );
+
+            JoinOperator joinOperator = new LeapfrogOperator(
+                    leftSourceOperator, rightSourceOperator, "int", "int",
+                    transaction.getTransactionContext());
+
+            Iterator<Record> outputIterator = joinOperator.iterator();
+
+            int numRecords = 0;
+
+            assertFalse("too many records", outputIterator.hasNext());
+            outputIterator.hasNext();
+            assertEquals("too few records", 0, numRecords);
+        }
+    }
 }
