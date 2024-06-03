@@ -9,7 +9,7 @@ public class ContestSetup {
     public static final EvictionPolicy EVICTION_POLICY = new LRUEvictionPolicy();
 
     public static final String[][] INDICES_TO_BUILD = {
-            // Format ("table", "column")
+            // Format {"table", "column"}
             // Examples:
     };
 }
