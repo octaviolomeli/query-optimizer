@@ -162,7 +162,7 @@ public class TestIndexNestedLoopJoin {
             }
 
             assertFalse("too many records", outputIterator.hasNext());
-            assertEquals("too few records", 100 * 100, numRecords);
+            assertEquals("too few records", expectedValues.size(), numRecords);
         }
     }
 
