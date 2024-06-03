@@ -1,10 +1,9 @@
 package edu.berkeley.cs186.database.query.join;
 
 import edu.berkeley.cs186.database.TransactionContext;
-import edu.berkeley.cs186.database.common.iterator.BacktrackingIterator;
+import edu.berkeley.cs186.database.common.PredicateOperator;
 import edu.berkeley.cs186.database.databox.DataBox;
-import edu.berkeley.cs186.database.databox.IntDataBox;
-import edu.berkeley.cs186.database.databox.LongDataBox;
+import edu.berkeley.cs186.database.query.IndexScanOperator;
 import edu.berkeley.cs186.database.query.JoinOperator;
 import edu.berkeley.cs186.database.query.QueryOperator;
 import edu.berkeley.cs186.database.table.Record;
@@ -14,15 +13,17 @@ import java.util.NoSuchElementException;
 
 /**
  * Performs an equijoin between two relations on leftColumnName and
- * rightColumnName respectively using the Simple Nested Loop Join algorithm.
+ * rightColumnName respectively using the Index Nested Loop Join algorithm.
  */
 public class INLJOperator extends JoinOperator {
-   String rightTable;
-
-    public INLJOperator(QueryOperator leftSource, QueryOperator rightSource, String leftColumnName, String rightColumnName, TransactionContext transaction, String rightTable) {
-        super(leftSource, materialize(rightSource, transaction), leftColumnName, rightColumnName, transaction, JoinType.INLJ);
+    String rightTableName;
+    public INLJOperator(QueryOperator leftSource, QueryOperator rightSource,
+                        String leftColumnName, String rightColumnName,
+                        TransactionContext transaction, String rightTableName) {
+        super(leftSource, materialize(rightSource, transaction), leftColumnName,
+                                    rightColumnName, transaction, JoinType.INLJ);
         this.stats = this.estimateStats();
-        this.rightTable = rightTable;
+        this.rightTableName = rightTableName;
     }
 
     @Override
@@ -32,10 +33,15 @@ public class INLJOperator extends JoinOperator {
 
     @Override
     public int estimateIOCost() {
-        int numLeftPages = getLeftSource().estimateStats().getNumPages();
         int numLeftRecords = getLeftSource().estimateStats().getNumRecords();
-        int numLeafPages = numLeftRecords / (2 * getTransaction().getTreeOrder(rightTable, getRightColumnName()));
-        return numLeftPages + numLeftRecords * (1 + getTransaction().getTreeHeight(rightTable, getRightColumnName()) + numLeafPages);
+        int numLeftPages = getLeftSource().estimateStats().getNumPages();
+        int numRightRecords = getRightSource().estimateStats().getNumRecords();
+
+        // Index stuff
+        int height = this.getTransaction().getTreeHeight(rightTableName, getRightColumnName());
+        int order = this.getTransaction().getTreeOrder(rightTableName, getRightColumnName());
+
+        return numLeftPages + numLeftRecords *  (int) (height + Math.ceil(numRightRecords / (1.5 * order)));
     }
 
     /**
@@ -46,7 +52,9 @@ public class INLJOperator extends JoinOperator {
     private class INLJIterator implements Iterator<Record> {
         // Iterator over all the records of the left relation
         private Iterator<Record> leftSourceIterator;
-        // Iterator over all the records of the right relation
+        // Index Operator over right relation
+        private IndexScanOperator rightSourceIndexOperator;
+        // Iterator for records in the right relation that match
         private Iterator<Record> rightSourceIterator;
         // The current record from the left relation
         private Record leftRecord;
@@ -55,12 +63,14 @@ public class INLJOperator extends JoinOperator {
 
         public INLJIterator() {
             super();
-
             this.leftSourceIterator = getLeftSource().iterator();
             if (leftSourceIterator.hasNext()) leftRecord = leftSourceIterator.next();
+            if (leftSourceIterator.hasNext()) {
+                DataBox value = leftRecord.getValue(getLeftColumnIndex());
+                this.rightSourceIndexOperator = new IndexScanOperator(getTransaction(),
+                        rightTableName, getRightColumnName(), PredicateOperator.EQUALS, value);
 
-            if (leftRecord != null) {
-                this.rightSourceIterator = getTransaction().lookupKey(rightTable, getRightColumnName(), leftRecord.getValue(getLeftColumnIndex()));
+                this.rightSourceIterator = rightSourceIndexOperator.iterator();
             }
         }
 
@@ -84,7 +94,10 @@ public class INLJOperator extends JoinOperator {
                     // there's no more right records but there's still left
                     // records. Advance left and reset right
                     this.leftRecord = leftSourceIterator.next();
-                    this.rightSourceIterator = getTransaction().lookupKey(rightTable, getRightColumnName(), leftRecord.getValue(getLeftColumnIndex()));
+                    DataBox value = leftRecord.getValue(getLeftColumnIndex());
+                    this.rightSourceIndexOperator = new IndexScanOperator(getTransaction(),
+                            rightTableName, getRightColumnName(), PredicateOperator.EQUALS, value);
+                    this.rightSourceIterator = rightSourceIndexOperator.iterator();
                 } else {
                     // if you're here then there are no more records to fetch
                     return null;
