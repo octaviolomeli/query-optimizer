@@ -12,7 +12,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-class IndexScanOperator extends QueryOperator {
+public class IndexScanOperator extends QueryOperator {
     private TransactionContext transaction;
     private String tableName;
     private String columnName;
@@ -28,7 +28,7 @@ class IndexScanOperator extends QueryOperator {
      * @param tableName the table to iterate over
      * @param columnName the name of the column the index is on
      */
-    IndexScanOperator(TransactionContext transaction,
+    public IndexScanOperator(TransactionContext transaction,
                       String tableName,
                       String columnName,
                       PredicateOperator predicate,
@@ -104,7 +104,7 @@ class IndexScanOperator extends QueryOperator {
     /**
      * An implementation of Iterator that provides an iterator interface for this operator.
      */
-    private class IndexScanIterator implements Iterator<Record> {
+    public class IndexScanIterator implements Iterator<Record> {
         private Iterator<Record> sourceIterator;
         private Record nextRecord;
 
