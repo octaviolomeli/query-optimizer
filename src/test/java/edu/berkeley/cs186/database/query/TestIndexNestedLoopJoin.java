@@ -1,14 +1,15 @@
 package edu.berkeley.cs186.database.query;
 
 import edu.berkeley.cs186.database.Database;
-import edu.berkeley.cs186.database.TestUtils;
 import edu.berkeley.cs186.database.TimeoutScaling;
 import edu.berkeley.cs186.database.Transaction;
+import edu.berkeley.cs186.database.common.PredicateOperator;
 import edu.berkeley.cs186.database.concurrency.DummyLockContext;
+import edu.berkeley.cs186.database.databox.Type;
 import edu.berkeley.cs186.database.io.DiskSpaceManager;
 import edu.berkeley.cs186.database.memory.Page;
-import edu.berkeley.cs186.database.query.join.INLJOperator;
 import edu.berkeley.cs186.database.table.Record;
+import edu.berkeley.cs186.database.table.Schema;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -26,10 +27,9 @@ import static org.junit.Assert.*;
 
 public class TestIndexNestedLoopJoin {
     private Database d;
-    private long numIOs;
     private QueryOperator leftSourceOperator;
     private QueryOperator rightSourceOperator;
-    private Map<Long, Page> pinnedPages = new HashMap<>();
+    private final Map<Long, Page> pinnedPages = new HashMap<>();
 
     @Rule
     public TemporaryFolder tempFolder = new TemporaryFolder();
@@ -86,46 +86,59 @@ public class TestIndexNestedLoopJoin {
         // joined on the column "int". Since all records are identical we expect
         // expect exactly 100 x 100 = 10000 records to be yielded.
         // Both tables consist of a single page.
-        try(Transaction transaction = d.beginTransaction()) {
-            setSourceOperators(
-                    TestUtils.createSourceWithAllTypes(100),
-                    TestUtils.createSourceWithAllTypes(100),
-                    transaction
-            );
-
-            transaction.createIndex("tempTable1", "int", false);
-
-            // Constructing the operator should incur no extra IOs
-            JoinOperator joinOperator = new INLJOperator(leftSourceOperator, rightSourceOperator,
-                    "int", "int",
-                    transaction.getTransactionContext(), "tempTable1");
-
-            Iterator<Record> outputIterator = joinOperator.iterator();
-
-            int numRecords = 0;
-            Record expectedRecord = new Record(true, 1, "a", 1.2f, true, 1, "a", 1.2f);
-
-            while (outputIterator.hasNext() && numRecords < 100 * 100) {
-                assertEquals("mismatch at record " + numRecords, expectedRecord, outputIterator.next());
-                numRecords++;
+        try(Transaction transaction1 = d.beginTransaction()) {
+            Schema s = new Schema()
+                    .add("id", Type.intType())
+                    .add("firstName", Type.stringType(10))
+                    .add("lastName", Type.stringType(10));
+            transaction1.createTable(s, "table1");
+            transaction1.createTable(s, "table2");
+            List<Integer> ids = new ArrayList<>();
+            for (int i = 0; i < 100; i++) ids.add(i);
+            Collections.shuffle(ids);
+            for (int i = 0; i < 100; i++) {
+                transaction1.insert("table1", i, "Jane", "Doe");
+                transaction1.insert("table2", ids.get(i), "Jane", "Doe");
             }
 
-            assertFalse("too many records", outputIterator.hasNext());
-            assertEquals("too few records", 100 * 100, numRecords);
+            transaction1.createIndex("table2", "id", false);
+        }
+        try(Transaction transaction2 = d.beginTransaction()) {
+            // FROM table1 AS t1
+            QueryPlan queryPlan = transaction2.query("table1", "t1");
+            // JOIN table1 AS t2 ON t1.lastName = t2.lastName
+            queryPlan.join("table2", "t2", "t1.id", "t2.id");
+            // SELECT t1.id, t2.id, t1.firstName, t2.firstName, t1.lastName
+            queryPlan.select("t2.id", PredicateOperator.GREATER_THAN_EQUALS, 0);
+            queryPlan.project("t1.id", "t2.id");
+            // run the query
+            Iterator<Record> iter = queryPlan.indexTestExecute();
+
+            int numRecords = 0;
+            Record expectedRecord = new Record(0, "Jane", "Doe", 0, "Jane", "Doe");
+
+            while (iter.hasNext() && numRecords < 100) {
+                assertEquals("mismatch at record " + numRecords, expectedRecord, iter.next());
+                numRecords++;
+                expectedRecord = new Record(numRecords, "Jane", "Doe", numRecords, "Jane", "Doe");
+            }
+
+            assertFalse("too many records", iter.hasNext());
+            assertEquals("too few records", 100, numRecords);
         }
     }
 
     @Test
     // The point of using a source with increasing gaps is to test out the iterators' seek function
     public void testSomeMatchesINLJ() {
-        d.setWorkMem(5); // B=5
+        try(Transaction transaction1 = d.beginTransaction()) {
+            Schema s = new Schema()
+                    .add("id", Type.intType())
+                    .add("firstName", Type.stringType(10))
+                    .add("lastName", Type.stringType(10));
+            transaction1.createTable(s, "table1");
+            transaction1.createTable(s, "table2");
 
-        try(Transaction transaction = d.beginTransaction()) {
-            setSourceOperators(
-                    TestUtils.createIncreasingJumpSourceWithInts(50, 3),
-                    TestUtils.createIncreasingJumpSourceWithInts(25, 9),
-                    transaction
-            );
             List<Integer> numbersInSource1 = new ArrayList<>();
             List<Integer> numbersInSource2 = new ArrayList<>();
             List<Integer> expectedValues = new ArrayList<>();
@@ -133,35 +146,66 @@ public class TestIndexNestedLoopJoin {
             for (int i = 1; i <= 50 * 3; i+= 3) numbersInSource1.add(i);
             for (int i = 1; i <= 25 * 9; i+= 9) numbersInSource2.add(i);
 
-            for (int i = 0; i < numbersInSource1.size(); i++) {
-                for (int j = 0; j < numbersInSource2.size(); j++) {
-                    if (numbersInSource1.get(i).equals(numbersInSource2.get(j)) ) {
-                        expectedValues.add(numbersInSource1.get(i));
+            for (Integer integer : numbersInSource1) {
+                for (Integer value : numbersInSource2) {
+                    if (integer.equals(value)) {
+                        expectedValues.add(integer);
                     }
                 }
             }
 
-            transaction.createIndex("tempTable1", "int", false);
+            Collections.shuffle(numbersInSource2);
+            for (Integer integer : numbersInSource1) {
+                transaction1.insert("table1", integer, "Jane", "Doe");
+            }
 
-            JoinOperator joinOperator = new INLJOperator(leftSourceOperator, rightSourceOperator, "int", "int",
-                    transaction.getTransactionContext(), "rightTable");
+            for (Integer integer : numbersInSource2) {
+                transaction1.insert("table2", integer, "Jane", "Doe");
+            }
 
-            Iterator<Record> outputIterator = joinOperator.iterator();
+            transaction1.createIndex("table2", "id", false);
+        }
+        try(Transaction transaction2 = d.beginTransaction()) {
+            List<Integer> numbersInSource1 = new ArrayList<>();
+            List<Integer> numbersInSource2 = new ArrayList<>();
+            List<Integer> expectedValues = new ArrayList<>();
+
+            for (int i = 1; i <= 50 * 3; i+= 3) numbersInSource1.add(i);
+            for (int i = 1; i <= 25 * 9; i+= 9) numbersInSource2.add(i);
+
+            for (Integer integer : numbersInSource1) {
+                for (Integer value : numbersInSource2) {
+                    if (integer.equals(value)) {
+                        expectedValues.add(integer);
+                    }
+                }
+            }
+
+
+            // FROM table1 AS t1
+            QueryPlan queryPlan = transaction2.query("table1", "t1");
+            // JOIN table1 AS t2 ON t1.lastName = t2.lastName
+            queryPlan.join("table2", "t2", "t1.id", "t2.id");
+            // SELECT t1.id, t2.id, t1.firstName, t2.firstName, t1.lastName
+            queryPlan.select("t2.id", PredicateOperator.GREATER_THAN_EQUALS, 0);
+            queryPlan.project("t1.id", "t2.id");
+            // run the query
+            Iterator<Record> iter = queryPlan.indexTestExecute();
 
             int numRecords = 0;
             Record record1;
             Record record2;
             Record expected;
 
-            while (outputIterator.hasNext() && numRecords < expectedValues.size()) {
-                record1 = new Record(expectedValues.get(numRecords));
-                record2 = new Record(expectedValues.get(numRecords));
+            while (iter.hasNext() && numRecords < expectedValues.size()) {
+                record1 = new Record(expectedValues.get(numRecords), "Jane", "Doe");
+                record2 = new Record(expectedValues.get(numRecords), "Jane", "Doe");
                 expected = record1.concat(record2);
-                assertEquals("mismatch at record " + numRecords, expected, outputIterator.next());
+                assertEquals("mismatch at record " + numRecords, expected, iter.next());
                 numRecords++;
             }
 
-            assertFalse("too many records", outputIterator.hasNext());
+            assertFalse("too many records", iter.hasNext());
             assertEquals("too few records", expectedValues.size(), numRecords);
         }
     }
@@ -171,21 +215,29 @@ public class TestIndexNestedLoopJoin {
         // Joins a non-empty table with an empty table. Expected behavior is
         // that iterator is created without error, and hasNext() immediately
         // returns false.
-        d.setWorkMem(4); // B=4
-        try(Transaction transaction = d.beginTransaction()) {
-            setSourceOperators(
-                    TestUtils.createSourceWithAllTypes(100),
-                    TestUtils.createSourceWithInts(Collections.emptyList()),
-                    transaction
-            );
-
-            transaction.createIndex("tempTable1", "int", false);
-
-            JoinOperator joinOperator = new INLJOperator(leftSourceOperator, rightSourceOperator,
-                    "int", "int", transaction.getTransactionContext(), "tempTable1");
-
-            Iterator<Record> outputIterator = joinOperator.iterator();
-            assertFalse("too many records", outputIterator.hasNext());
+        try(Transaction transaction1 = d.beginTransaction()) {
+            Schema s = new Schema()
+                    .add("id", Type.intType())
+                    .add("firstName", Type.stringType(10))
+                    .add("lastName", Type.stringType(10));
+            transaction1.createTable(s, "table1");
+            transaction1.createTable(s, "table2");
+            for (int i = 0; i < 100; i++) {
+                transaction1.insert("table1", i, "Jane", "Doe");
+            }
+            transaction1.createIndex("table2", "id", false);
+        }
+        try(Transaction transaction2 = d.beginTransaction()) {
+            // FROM table1 AS t1
+            QueryPlan queryPlan = transaction2.query("table1", "t1");
+            // JOIN table1 AS t2 ON t1.lastName = t2.lastName
+            queryPlan.join("table2", "t2", "t1.id", "t2.id");
+            // SELECT t1.id, t2.id, t1.firstName, t2.firstName, t1.lastName
+            queryPlan.select("t2.id", PredicateOperator.GREATER_THAN_EQUALS, 0);
+            queryPlan.project("t1.id", "t2.id");
+            // run the query
+            Iterator<Record> iter = queryPlan.indexTestExecute();
+            assertFalse("too many records", iter.hasNext());
         }
     }
 
@@ -194,21 +246,29 @@ public class TestIndexNestedLoopJoin {
         // Joins an empty table with a non-empty table. Expected behavior is
         // that iterator is created without error, and hasNext() immediately
         // returns false.
-        d.setWorkMem(4); // B=4
-        try(Transaction transaction = d.beginTransaction()) {
-            setSourceOperators(
-                    TestUtils.createSourceWithInts(Collections.emptyList()),
-                    TestUtils.createSourceWithAllTypes(100),
-                    transaction
-            );
-
-            transaction.createIndex("tempTable1", "int", false);
-
-            JoinOperator joinOperator = new INLJOperator(leftSourceOperator, rightSourceOperator,
-                    "int", "int", transaction.getTransactionContext(), "rightTable");
-
-            Iterator<Record> outputIterator = joinOperator.iterator();
-            assertFalse("too many records", outputIterator.hasNext());
+        try(Transaction transaction1 = d.beginTransaction()) {
+            Schema s = new Schema()
+                    .add("id", Type.intType())
+                    .add("firstName", Type.stringType(10))
+                    .add("lastName", Type.stringType(10));
+            transaction1.createTable(s, "table1");
+            transaction1.createTable(s, "table2");
+            for (int i = 0; i < 100; i++) {
+                transaction1.insert("table2", i, "Jane", "Doe");
+            }
+            transaction1.createIndex("table2", "id", false);
+        }
+        try(Transaction transaction2 = d.beginTransaction()) {
+            // FROM table1 AS t1
+            QueryPlan queryPlan = transaction2.query("table1", "t1");
+            // JOIN table1 AS t2 ON t1.lastName = t2.lastName
+            queryPlan.join("table2", "t2", "t1.id", "t2.id");
+            // SELECT t1.id, t2.id, t1.firstName, t2.firstName, t1.lastName
+            queryPlan.select("t2.id", PredicateOperator.GREATER_THAN_EQUALS, 0);
+            queryPlan.project("t1.id", "t2.id");
+            // run the query
+            Iterator<Record> iter = queryPlan.indexTestExecute();
+            assertFalse("too many records", iter.hasNext());
         }
     }
 
@@ -217,21 +277,26 @@ public class TestIndexNestedLoopJoin {
         // Joins a empty table with an empty table. Expected behavior is
         // that iterator is created without error, and hasNext() immediately
         // returns false.
-        d.setWorkMem(4); // B=4
-        try(Transaction transaction = d.beginTransaction()) {
-            setSourceOperators(
-                    TestUtils.createSourceWithInts(Collections.emptyList()),
-                    TestUtils.createSourceWithInts(Collections.emptyList()),
-                    transaction
-            );
-
-            transaction.createIndex("tempTable1", "int", false);
-
-            JoinOperator joinOperator = new INLJOperator(leftSourceOperator, rightSourceOperator,
-                "int", "int", transaction.getTransactionContext(), "rightTable");
-
-            Iterator<Record> outputIterator = joinOperator.iterator();
-            assertFalse("too many records", outputIterator.hasNext());
+        try(Transaction transaction1 = d.beginTransaction()) {
+            Schema s = new Schema()
+                    .add("id", Type.intType())
+                    .add("firstName", Type.stringType(10))
+                    .add("lastName", Type.stringType(10));
+            transaction1.createTable(s, "table1");
+            transaction1.createTable(s, "table2");
+            transaction1.createIndex("table2", "id", false);
+        }
+        try(Transaction transaction2 = d.beginTransaction()) {
+            // FROM table1 AS t1
+            QueryPlan queryPlan = transaction2.query("table1", "t1");
+            // JOIN table1 AS t2 ON t1.lastName = t2.lastName
+            queryPlan.join("table2", "t2", "t1.id", "t2.id");
+            // SELECT t1.id, t2.id, t1.firstName, t2.firstName, t1.lastName
+            queryPlan.select("t2.id", PredicateOperator.GREATER_THAN_EQUALS, 0);
+            queryPlan.project("t1.id", "t2.id");
+            // run the query
+            Iterator<Record> iter = queryPlan.indexTestExecute();
+            assertFalse("too many records", iter.hasNext());
         }
     }
 

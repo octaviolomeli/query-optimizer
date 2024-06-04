@@ -627,6 +627,7 @@ public class QueryPlan {
         allJoins.add(new BNLJOperator(leftOp, rightOp, leftColumn, rightColumn, this.transaction));
         allJoins.add(new GHJOperator(leftOp, rightOp, leftColumn, rightColumn, this.transaction));
         allJoins.add(new SHJOperator(leftOp, rightOp, leftColumn, rightColumn, this.transaction));
+        allJoins.add(new LeapfrogOperator(leftOp, rightOp, leftColumn, rightColumn, this.transaction));
         if (transaction.indexExists(rightTable, rightColumn)) {
             allJoins.add(new INLJOperator(leftOp, rightOp, leftColumn, rightColumn, this.transaction, rightTable));
         }
@@ -773,6 +774,29 @@ public class QueryPlan {
         addSort();
         addLimit();
 
+        return finalOperator.iterator();
+    }
+
+    // Used for testing purposes
+    public Iterator<Record> indexTestExecute() {
+        this.transaction.setAliasMap(this.aliases);
+        QueryOperator leftOperator = new SequentialScanOperator(this.transaction, tableNames.get(0));
+        QueryOperator rightOperator = null;
+        List<Integer> indices = getEligibleIndexColumns(tableNames.get(1));
+
+        for (int index : indices) {
+            SelectPredicate curr = this.selectPredicates.get(index);
+            String tableName = curr.tableName;
+            String column = curr.column;
+            PredicateOperator predicate = curr.operator;
+            DataBox value = curr.value;
+
+            rightOperator = new IndexScanOperator(this.transaction, tableName, column, predicate, value);
+        }
+
+        finalOperator = new INLJOperator(leftOperator, rightOperator,
+                "id", "id",
+                transaction, tableNames.get(1));
         return finalOperator.iterator();
     }
 
