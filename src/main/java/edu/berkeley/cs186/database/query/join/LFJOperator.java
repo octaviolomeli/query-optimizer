@@ -9,7 +9,7 @@ import java.lang.Math;
 
 import java.util.*;
 
-// Leapfrog Trie Join
+// Leapfrog Join
 public class LFJOperator extends JoinOperator {
     // Both relations should be sorted
     public LFJOperator(QueryOperator leftSource,
