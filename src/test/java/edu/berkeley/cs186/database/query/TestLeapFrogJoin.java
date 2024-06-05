@@ -7,7 +7,7 @@ import edu.berkeley.cs186.database.Transaction;
 import edu.berkeley.cs186.database.concurrency.DummyLockContext;
 import edu.berkeley.cs186.database.io.DiskSpaceManager;
 import edu.berkeley.cs186.database.memory.Page;
-import edu.berkeley.cs186.database.query.join.LeapfrogOperator;
+import edu.berkeley.cs186.database.query.join.LFJOperator;
 import edu.berkeley.cs186.database.table.Record;
 import org.junit.After;
 import org.junit.Before;
@@ -110,7 +110,7 @@ public class TestLeapFrogJoin {
                     transaction
             );
 
-            JoinOperator joinOperator = new LeapfrogOperator(
+            JoinOperator joinOperator = new LFJOperator(
                     leftSourceOperator, rightSourceOperator, "int", "int",
                     transaction.getTransactionContext());
 
@@ -161,7 +161,7 @@ public class TestLeapFrogJoin {
                 }
             }
 
-            JoinOperator joinOperator = new LeapfrogOperator(
+            JoinOperator joinOperator = new LFJOperator(
                     leftSourceOperator, rightSourceOperator, "int", "int",
                     transaction.getTransactionContext());
 
@@ -197,7 +197,7 @@ public class TestLeapFrogJoin {
             );
             startCountIOs();
 
-            JoinOperator joinOperator = new LeapfrogOperator(
+            JoinOperator joinOperator = new LFJOperator(
                     leftSourceOperator, rightSourceOperator, "int", "int",
                     transaction.getTransactionContext());
             checkIOs(0);
@@ -219,7 +219,7 @@ public class TestLeapFrogJoin {
                     transaction
             );
             startCountIOs();
-            JoinOperator joinOperator = new LeapfrogOperator(leftSourceOperator, rightSourceOperator,
+            JoinOperator joinOperator = new LFJOperator(leftSourceOperator, rightSourceOperator,
                     "int", "int", transaction.getTransactionContext());
             checkIOs(0);
             Iterator<Record> outputIterator = joinOperator.iterator();
@@ -240,7 +240,7 @@ public class TestLeapFrogJoin {
                     transaction
             );
             startCountIOs();
-            JoinOperator joinOperator = new LeapfrogOperator(leftSourceOperator, rightSourceOperator,
+            JoinOperator joinOperator = new LFJOperator(leftSourceOperator, rightSourceOperator,
                     "int", "int", transaction.getTransactionContext());
             checkIOs(0);
             Iterator<Record> outputIterator = joinOperator.iterator();
@@ -265,7 +265,7 @@ public class TestLeapFrogJoin {
                     transaction
             );
 
-            JoinOperator joinOperator = new LeapfrogOperator(leftSourceOperator, rightSourceOperator, "int",
+            JoinOperator joinOperator = new LFJOperator(leftSourceOperator, rightSourceOperator, "int",
                     "int",
                     transaction.getTransactionContext());
 
@@ -304,7 +304,7 @@ public class TestLeapFrogJoin {
                     transaction
             );
 
-            JoinOperator joinOperator = new LeapfrogOperator(
+            JoinOperator joinOperator = new LFJOperator(
                     leftSourceOperator, rightSourceOperator, "int", "int",
                     transaction.getTransactionContext());
 

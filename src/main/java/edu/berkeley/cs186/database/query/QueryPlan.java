@@ -627,7 +627,7 @@ public class QueryPlan {
         allJoins.add(new BNLJOperator(leftOp, rightOp, leftColumn, rightColumn, this.transaction));
         allJoins.add(new GHJOperator(leftOp, rightOp, leftColumn, rightColumn, this.transaction));
         allJoins.add(new SHJOperator(leftOp, rightOp, leftColumn, rightColumn, this.transaction));
-        allJoins.add(new LeapfrogOperator(leftOp, rightOp, leftColumn, rightColumn, this.transaction));
+        allJoins.add(new LFJOperator(leftOp, rightOp, leftColumn, rightColumn, this.transaction));
         if (transaction.indexExists(rightTable, rightColumn)) {
             allJoins.add(new INLJOperator(leftOp, rightOp, leftColumn, rightColumn, this.transaction, rightTable));
         }

@@ -9,16 +9,17 @@ import java.lang.Math;
 
 import java.util.*;
 
-public class LeapfrogOperator extends JoinOperator {
+// Leapfrog Trie Join
+public class LFJOperator extends JoinOperator {
     // Both relations should be sorted
-    public LeapfrogOperator(QueryOperator leftSource,
-                            QueryOperator rightSource,
-                            String leftColumnName,
-                            String rightColumnName,
-                            TransactionContext transaction) {
+    public LFJOperator(QueryOperator leftSource,
+                       QueryOperator rightSource,
+                       String leftColumnName,
+                       String rightColumnName,
+                       TransactionContext transaction) {
         super(prepareLeft(transaction, leftSource, leftColumnName),
                 prepareRight(transaction, rightSource, rightColumnName),
-                leftColumnName, rightColumnName, transaction, JoinType.LEAPFROG);
+                leftColumnName, rightColumnName, transaction, JoinType.LFJ);
         this.stats = this.estimateStats();
     }
 
@@ -73,7 +74,7 @@ public class LeapfrogOperator extends JoinOperator {
         private int p;
         private final LeapfrogIterator[] iters;
 
-        private LeapfrogJoinIterator(LeapfrogOperator lfo) {
+        private LeapfrogJoinIterator(LFJOperator lfo) {
             super();
             leftIterator = new LeapfrogIterator(getLeftSource(), lfo);
             rightIterator = new LeapfrogIterator(getRightSource(), lfo);
@@ -132,6 +133,7 @@ public class LeapfrogOperator extends JoinOperator {
             nextRecord = leapfrog_search();
         }
 
+        // Find the next record to join
         public Record leapfrog_search() {
             Record y = iters[Math.floorMod(p - 1, 2)].key(); // Max key of any iter
             while (true) {
@@ -156,6 +158,7 @@ public class LeapfrogOperator extends JoinOperator {
             }
         }
 
+        // Return the next joined record
         public Record leapfrog_next() {
             iters[p].next();
             if (iters[p].atEnd()) {
@@ -181,15 +184,13 @@ public class LeapfrogOperator extends JoinOperator {
          */
     }
 
-    /*
-        Iterator for one source. Helper iterator for LeapfrogJoinIterator.
-     */
+    // Iterator for one source. Helper iterator for LeapfrogJoinIterator.
     private static class LeapfrogIterator {
         private int index;
-        LeapfrogOperator outsideOperator;
+        LFJOperator outsideOperator;
         ArrayList<Record> sourceList = new ArrayList<>();
 
-        private LeapfrogIterator(QueryOperator recordSource, LeapfrogOperator outsideOperator) {
+        private LeapfrogIterator(QueryOperator recordSource, LFJOperator outsideOperator) {
             this.outsideOperator = outsideOperator;
             recordSource.iterator().forEachRemaining(sourceList::add);
             index = 0;
