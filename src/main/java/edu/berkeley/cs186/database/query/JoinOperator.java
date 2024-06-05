@@ -15,7 +15,8 @@ public abstract class JoinOperator extends QueryOperator {
         SHJ,
         GHJ,
         INLJ,
-        LFJ
+        LFJ,
+        LFTJ
     }
     protected JoinType joinType;
 
