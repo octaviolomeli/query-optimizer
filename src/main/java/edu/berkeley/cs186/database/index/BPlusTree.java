@@ -480,7 +480,7 @@ public class BPlusTree {
         @Override
         public boolean hasNext() {
             // TODO(proj2): implement
-            return currentLeaf.isPresent();
+            return currentLeaf.isPresent() && currentLeaf.get().getKeys().size() != 0;
         }
 
         @Override
