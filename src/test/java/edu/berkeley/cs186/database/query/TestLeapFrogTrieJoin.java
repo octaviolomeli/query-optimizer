@@ -233,39 +233,30 @@ public class TestLeapFrogTrieJoin {
     public void testLeapFrogUnsortedInputs()  {
         d.setWorkMem(3); // B=3
         try(Transaction transaction = d.beginTransaction()) {
-            // Create random order of [1, ..., 800]
-            List<Integer> numbers = new ArrayList<>();
-            for (int i = 1; i <= 800; i++) {
-                numbers.add(i);
-            }
-            Collections.shuffle(numbers);
-
             setSourceOperators(
-                    TestUtils.createSourceWithInts(numbers),
-                    TestUtils.createSourceWithInts(numbers),
+                    TestUtils.createDecreasingSourceWith3IntFields(20, 0),
+                    TestUtils.createDecreasingSourceWith3IntFields(20, 10),
                     transaction
             );
 
-            JoinOperator joinOperator = new LFTJOperator(leftSourceOperator, rightSourceOperator, "int",
-                    "int",
+            JoinOperator joinOperator = new LFTJOperator(
+                    leftSourceOperator, rightSourceOperator, "field1", "field1",
                     transaction.getTransactionContext());
 
             Iterator<Record> outputIterator = joinOperator.iterator();
-
             int numRecords = 0;
-            Record record1 = new Record(1);
-            Record record2 = new Record(1);
-            Record expected = record1.concat(record2);
 
-            while (outputIterator.hasNext() && numRecords < 800) {
-                assertEquals("mismatch at record " + numRecords, expected, outputIterator.next());
+            Record expectedRecord = new Record(20, 20, 20).concat(new Record(20, 20, 20));
+
+            while (numRecords < 10 && outputIterator.hasNext()) {
+                assertEquals("mismatch at record " + numRecords, expectedRecord, outputIterator.next());
                 numRecords++;
-                record1 = new Record(numRecords + 1);
-                record2 = new Record(numRecords + 1);
-                expected = record1.concat(record2);
+                expectedRecord = new Record(20 - numRecords, 20 - numRecords, 20 - numRecords)
+                        .concat(new Record(20 - numRecords, 20 - numRecords, 20 - numRecords));
             }
+
             assertFalse("too many records", outputIterator.hasNext());
-            assertEquals("too few records", 800, numRecords);
+            assertEquals("too few records", 10, numRecords);
         }
     }
 }

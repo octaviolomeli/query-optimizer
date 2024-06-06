@@ -90,4 +90,16 @@ public class TestUtils {
         List<Record> recordList = new ArrayList<Record>();
         return new TestSourceOperator(recordList, schema);
     }
+
+    public static TestSourceOperator createDecreasingSourceWith3IntFields(int numRecords, int start) {
+        Schema schema = new Schema()
+                .add("field1", Type.intType())
+                .add("field2", Type.intType())
+                .add("field3", Type.intType());
+        List<Record> recordList = new ArrayList<Record>();
+        for (int i = numRecords + start; i > start; i--) {
+            recordList.add(new Record(i, i, i));
+        }
+        return new TestSourceOperator(recordList, schema);
+    }
 }
