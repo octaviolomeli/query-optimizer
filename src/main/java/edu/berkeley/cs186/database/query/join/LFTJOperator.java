@@ -74,6 +74,7 @@ public class LFTJOperator extends JoinOperator {
         private boolean atEnd;
         private int p;
         private final LeapfrogTrieIterator[] iters;
+        private int depth;
 
         private LeapfrogTrieJoinIterator() {
             super();
@@ -83,6 +84,7 @@ public class LFTJOperator extends JoinOperator {
             iters = new LeapfrogTrieIterator[2];
             iters[0] = leftIterator;
             iters[1] = rightIterator;
+            depth = -1;
         }
 
         /**
@@ -114,7 +116,6 @@ public class LFTJOperator extends JoinOperator {
         private Record fetchNextRecord() {
             return null;
         }
-
     }
 
     // Iterator for one source. Helper iterator for LeapfrogTrieJoinIterator.
@@ -123,7 +124,7 @@ public class LFTJOperator extends JoinOperator {
         TrieNode currNode;
         // Index for the current node's children
         int currentIndexInSortedChildren = 0;
-
+        int depth = -1;
 
         private LeapfrogTrieIterator(QueryOperator recordSource) {
             trieRoot = new TrieNode();
@@ -134,24 +135,33 @@ public class LFTJOperator extends JoinOperator {
         }
 
         // Proceed to the first key at the next depth
-        public void open(){
+        public void open() {
             DataBox firstChild = sortChildren().getFirst();
             currNode = currNode.children.get(firstChild);
+            currentIndexInSortedChildren = 0;
         }
 
         // Return to the parent key at the previous depth
-        public boolean up(){
-            if (currNode.getParent() == null) {
+        public boolean up() {
+            if (depth == -1 || currNode.getParent() == null) {
                 return false;
             }
             currNode = currNode.getParent();
             return true;
         }
 
+        public void next() {
+
+        }
+
         public ArrayList<DataBox> sortChildren() {
             ArrayList<DataBox> childrenSorted = new ArrayList<>(currNode.children.keySet());
             childrenSorted.sort(new DataBoxComparator());
             return childrenSorted;
+        }
+
+        public boolean atEnd() {
+            return false;
         }
     }
 
