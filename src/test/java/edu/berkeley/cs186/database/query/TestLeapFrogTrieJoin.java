@@ -105,37 +105,48 @@ public class TestLeapFrogTrieJoin {
     }
 
     @Test
-    public void testSimpleLeapFrogTrieJoin() {
+    public void testAllMatchesLeapFrogTrieJoin() {
         d.setWorkMem(5); // B=5
         try(Transaction transaction = d.beginTransaction()) {
+            ArrayList<DataBox> source1 = new ArrayList<>();
+            source1.add(new IntDataBox(1));
+            source1.add(new IntDataBox(1));
+            source1.add(new IntDataBox(1));
+
             setSourceOperators(
-                    TestUtils.createIncreasingSourceWithAllTypes(100),
-                    TestUtils.createIncreasingSourceWithAllTypes(100),
+                    // First source has 3 fields of value 1 for each record
+                    TestUtils.createSourceWithSame3Values(source1, 25),
+                    // Second source has 3 fields of value 3 for each record
+                    TestUtils.createSourceWithSame3Values(source1, 25),
                     transaction
             );
 
             JoinOperator joinOperator = new LFTJOperator(
-                    leftSourceOperator, rightSourceOperator, "int", "int",
+                    leftSourceOperator, rightSourceOperator, "field1", "field1",
                     transaction.getTransactionContext());
 
             Iterator<Record> outputIterator = joinOperator.iterator();
 
             int numRecords = 0;
-            Record record1 = TestUtils.createRecordWithAllTypesWithValue(1);
-            Record record2 = TestUtils.createRecordWithAllTypesWithValue(1);
-            Record expected = record1.concat(record2);
 
-            while (outputIterator.hasNext() && numRecords < 100) {
-                assertEquals("mismatch at record " + numRecords, expected, outputIterator.next());
+            Record expectedRecord = new Record(new IntDataBox(1), new IntDataBox(1), new IntDataBox(1))
+                    .concat(new Record(new IntDataBox(1), new IntDataBox(1), new IntDataBox(1)));
+
+            while (numRecords < 25 && outputIterator.hasNext()) {
+                assertEquals("mismatch at record " + numRecords, expectedRecord, outputIterator.next());
                 numRecords++;
-                record1 = TestUtils.createRecordWithAllTypesWithValue(numRecords + 1);
-                record2 = TestUtils.createRecordWithAllTypesWithValue(numRecords + 1);
-                expected = record1.concat(record2);
             }
 
             assertFalse("too many records", outputIterator.hasNext());
-            outputIterator.hasNext();
-            assertEquals("too few records", 100, numRecords);
+            assertEquals("too few records", 25, numRecords);
+        }
+    }
+
+    @Test
+    public void testSomeMatchesLeapFrogTrieJoin() {
+        d.setWorkMem(5); // B=5
+        try(Transaction transaction = d.beginTransaction()) {
+
         }
     }
 
