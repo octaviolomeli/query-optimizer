@@ -58,30 +58,35 @@ public class TestUtils {
         return new TestSourceOperator(recordList, schema);
     }
 
-    public static Record createRecordWith3Values(ArrayList<DataBox> values) {
-        if (values.size() != 3) {
-            throw new UnsupportedOperationException();
-        }
-        return new Record(values.get(0), values.get(1), values.get(2));
-    }
-
-    public static TestSourceOperator createSourceWithSame3Values(ArrayList<DataBox> values, int numRecords) {
+    public static TestSourceOperator createIncreasingSourceWith3IntFields(int numRecords) {
         Schema schema = new Schema()
-                .add("field1", values.get(0).type())
-                .add("field2", values.get(1).type())
-                .add("field3", values.get(2).type());
+                .add("field1", Type.intType())
+                .add("field2", Type.intType())
+                .add("field3", Type.intType());
         List<Record> recordList = new ArrayList<Record>();
         for (int i = 0; i < numRecords; i++) {
-            recordList.add(createRecordWith3Values(values));
+            recordList.add(new Record(i, i, i));
         }
         return new TestSourceOperator(recordList, schema);
     }
 
-    public static TestSourceOperator createEmptySourceWith3Fields(ArrayList<DataBox> valuesForFields) {
+    public static TestSourceOperator createIncreasingSourceWith3IntFields(int numRecords, int start) {
         Schema schema = new Schema()
-                .add("field1", valuesForFields.get(0).type())
-                .add("field2", valuesForFields.get(1).type())
-                .add("field3", valuesForFields.get(2).type());
+                .add("field1", Type.intType())
+                .add("field2", Type.intType())
+                .add("field3", Type.intType());
+        List<Record> recordList = new ArrayList<Record>();
+        for (int i = start; i < numRecords + start; i++) {
+            recordList.add(new Record(i, i, i));
+        }
+        return new TestSourceOperator(recordList, schema);
+    }
+
+    public static TestSourceOperator createEmptySourceWith3IntFields() {
+        Schema schema = new Schema()
+                .add("field1", Type.intType())
+                .add("field2", Type.intType())
+                .add("field3", Type.intType());
         List<Record> recordList = new ArrayList<Record>();
         return new TestSourceOperator(recordList, schema);
     }

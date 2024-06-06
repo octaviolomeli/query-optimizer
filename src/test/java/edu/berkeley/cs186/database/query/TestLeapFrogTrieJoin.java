@@ -30,7 +30,6 @@ import static org.junit.Assert.*;
 
 public class TestLeapFrogTrieJoin {
     private Database d;
-    private long numIOs;
     private QueryOperator leftSourceOperator;
     private QueryOperator rightSourceOperator;
     private Map<Long, Page> pinnedPages = new HashMap<>();
@@ -40,7 +39,7 @@ public class TestLeapFrogTrieJoin {
 
     @Before
     public void setup() throws IOException {
-        File tempDir = tempFolder.newFolder("leapfrogTest");
+        File tempDir = tempFolder.newFolder("leapfrogtrieTest");
         d = new Database(tempDir.getAbsolutePath(), 256);
         d.setWorkMem(5); // B=5
         d.waitAllTransactions();
@@ -56,25 +55,6 @@ public class TestLeapFrogTrieJoin {
     @Rule
     public TestRule globalTimeout = new DisableOnDebug(Timeout.millis((long) (
             4000 * TimeoutScaling.factor)));
-
-    private void startCountIOs() {
-        d.getBufferManager().evictAll();
-        numIOs = d.getBufferManager().getNumIOs();
-    }
-
-    private void checkIOs(String message, long minIOs, long maxIOs) {
-        if (message == null) message = "";
-        else message = "(" + message + ")";
-        long newIOs = d.getBufferManager().getNumIOs();
-        long IOs = newIOs - numIOs;
-        assertTrue(IOs + " I/Os not between " + minIOs + " and " + maxIOs + message,
-                minIOs <= IOs && IOs <= maxIOs);
-        numIOs = newIOs;
-    }
-
-    private void checkIOs(long numIOs) {
-        checkIOs(null, numIOs, numIOs);
-    }
 
     private void setSourceOperators(TestSourceOperator leftSourceOperator,
                                     TestSourceOperator rightSourceOperator, Transaction transaction) {
@@ -108,16 +88,11 @@ public class TestLeapFrogTrieJoin {
     public void testAllMatchesLeapFrogTrieJoin() {
         d.setWorkMem(5); // B=5
         try(Transaction transaction = d.beginTransaction()) {
-            ArrayList<DataBox> source1 = new ArrayList<>();
-            source1.add(new IntDataBox(1));
-            source1.add(new IntDataBox(1));
-            source1.add(new IntDataBox(1));
-
             setSourceOperators(
                     // First source has 3 fields of value 1 for each record
-                    TestUtils.createSourceWithSame3Values(source1, 25),
+                    TestUtils.createIncreasingSourceWith3IntFields(25),
                     // Second source has 3 fields of value 3 for each record
-                    TestUtils.createSourceWithSame3Values(source1, 25),
+                    TestUtils.createIncreasingSourceWith3IntFields(25),
                     transaction
             );
 
@@ -129,12 +104,13 @@ public class TestLeapFrogTrieJoin {
 
             int numRecords = 0;
 
-            Record expectedRecord = new Record(new IntDataBox(1), new IntDataBox(1), new IntDataBox(1))
-                    .concat(new Record(new IntDataBox(1), new IntDataBox(1), new IntDataBox(1)));
+            Record expectedRecord = new Record(0, 0, 0).concat(new Record(0, 0, 0));
 
             while (numRecords < 25 && outputIterator.hasNext()) {
                 assertEquals("mismatch at record " + numRecords, expectedRecord, outputIterator.next());
                 numRecords++;
+                expectedRecord = new Record(numRecords, numRecords, numRecords)
+                        .concat(new Record(numRecords, numRecords, numRecords));
             }
 
             assertFalse("too many records", outputIterator.hasNext());
@@ -146,7 +122,9 @@ public class TestLeapFrogTrieJoin {
     public void testSomeMatchesLeapFrogTrieJoin() {
         d.setWorkMem(5); // B=5
         try(Transaction transaction = d.beginTransaction()) {
-
+            /*
+                Make sou
+            */
         }
     }
 
@@ -154,14 +132,9 @@ public class TestLeapFrogTrieJoin {
     public void testEmptyWithEmptyLeapFrogTrieJoin() {
         d.setWorkMem(5); // B=5
         try(Transaction transaction = d.beginTransaction()) {
-            ArrayList<DataBox> source1 = new ArrayList<>();
-            source1.add(new IntDataBox(1));
-            source1.add(new IntDataBox(1));
-            source1.add(new IntDataBox(1));
-
             setSourceOperators(
-                    TestUtils.createEmptySourceWith3Fields(source1),
-                    TestUtils.createEmptySourceWith3Fields(source1),
+                    TestUtils.createEmptySourceWith3IntFields(),
+                    TestUtils.createEmptySourceWith3IntFields(),
                     transaction
             );
 
@@ -181,18 +154,9 @@ public class TestLeapFrogTrieJoin {
         // returns false.
         d.setWorkMem(5); // B=5
         try(Transaction transaction = d.beginTransaction()) {
-            ArrayList<DataBox> source1 = new ArrayList<>();
-            ArrayList<DataBox> source2 = new ArrayList<>();
-            source1.add(new IntDataBox(1));
-            source1.add(new IntDataBox(1));
-            source1.add(new IntDataBox(1));
-            source2.add(new IntDataBox(1));
-            source2.add(new IntDataBox(1));
-            source2.add(new IntDataBox(1));
-
             setSourceOperators(
-                    TestUtils.createSourceWithSame3Values(source2, 10),
-                    TestUtils.createEmptySourceWith3Fields(source1),
+                    TestUtils.createIncreasingSourceWith3IntFields(10),
+                    TestUtils.createEmptySourceWith3IntFields(),
                     transaction
             );
 
@@ -212,18 +176,30 @@ public class TestLeapFrogTrieJoin {
         // returns false.
         d.setWorkMem(5); // B=5
         try(Transaction transaction = d.beginTransaction()) {
-            ArrayList<DataBox> source1 = new ArrayList<>();
-            ArrayList<DataBox> source2 = new ArrayList<>();
-            source1.add(new IntDataBox(1));
-            source1.add(new IntDataBox(1));
-            source1.add(new IntDataBox(1));
-            source2.add(new IntDataBox(1));
-            source2.add(new IntDataBox(1));
-            source2.add(new IntDataBox(1));
-
             setSourceOperators(
-                    TestUtils.createEmptySourceWith3Fields(source1),
-                    TestUtils.createSourceWithSame3Values(source2, 10),
+                    TestUtils.createEmptySourceWith3IntFields(),
+                    TestUtils.createIncreasingSourceWith3IntFields(10),
+                    transaction
+            );
+
+            JoinOperator joinOperator = new LFTJOperator(
+                    leftSourceOperator, rightSourceOperator, "field1", "field1",
+                    transaction.getTransactionContext());
+
+            Iterator<Record> outputIterator = joinOperator.iterator();
+            assertFalse("too many records", outputIterator.hasNext());
+        }
+    }
+
+    @Test
+    public void testNoMatchesLeapFrogTrieJoin() {
+        d.setWorkMem(5); // B=5
+        try(Transaction transaction = d.beginTransaction()) {
+            setSourceOperators(
+                    // First source has 3 fields of value 1 for each record
+                    TestUtils.createIncreasingSourceWith3IntFields(10, 0),
+                    // Second source has 3 fields of value 3 for each record
+                    TestUtils.createIncreasingSourceWith3IntFields(10, 25),
                     transaction
             );
 
@@ -273,36 +249,6 @@ public class TestLeapFrogTrieJoin {
             }
             assertFalse("too many records", outputIterator.hasNext());
             assertEquals("too few records", 800, numRecords);
-        }
-    }
-
-    @Test
-    public void testNoMatchesLeapFrogTrieJoin() {
-        d.setWorkMem(5); // B=5
-        try(Transaction transaction = d.beginTransaction()) {
-            ArrayList<DataBox> source1 = new ArrayList<>();
-            ArrayList<DataBox> source2 = new ArrayList<>();
-            source1.add(new IntDataBox(1));
-            source1.add(new IntDataBox(1));
-            source1.add(new IntDataBox(1));
-            source2.add(new IntDataBox(3));
-            source2.add(new IntDataBox(3));
-            source2.add(new IntDataBox(3));
-
-            setSourceOperators(
-                    // First source has 3 fields of value 1 for each record
-                    TestUtils.createSourceWithSame3Values(source1, 25),
-                    // Second source has 3 fields of value 3 for each record
-                    TestUtils.createSourceWithSame3Values(source2, 25),
-                    transaction
-            );
-
-            JoinOperator joinOperator = new LFTJOperator(
-                    leftSourceOperator, rightSourceOperator, "field1", "field1",
-                    transaction.getTransactionContext());
-
-            Iterator<Record> outputIterator = joinOperator.iterator();
-            assertFalse("too many records", outputIterator.hasNext());
         }
     }
 }
