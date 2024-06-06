@@ -9,4 +9,5 @@ The improvements I have added are:
 I plan on adding:
 
 - Duplicate key support in the B+ Tree
+- Duplicate record support in LeapfrogJoin
 - Implementing Leapfrog**Trie**join
