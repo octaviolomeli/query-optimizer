@@ -89,9 +89,7 @@ public class TestLeapFrogTrieJoin {
         d.setWorkMem(5); // B=5
         try(Transaction transaction = d.beginTransaction()) {
             setSourceOperators(
-                    // First source has 3 fields of value 1 for each record
                     TestUtils.createIncreasingSourceWith3IntFields(25),
-                    // Second source has 3 fields of value 3 for each record
                     TestUtils.createIncreasingSourceWith3IntFields(25),
                     transaction
             );
@@ -122,9 +120,30 @@ public class TestLeapFrogTrieJoin {
     public void testSomeMatchesLeapFrogTrieJoin() {
         d.setWorkMem(5); // B=5
         try(Transaction transaction = d.beginTransaction()) {
-            /*
-                Make sou
-            */
+            setSourceOperators(
+                    TestUtils.createIncreasingSourceWith3IntFields(20, 0),
+                    TestUtils.createIncreasingSourceWith3IntFields(20, 10),
+                    transaction
+            );
+
+            JoinOperator joinOperator = new LFTJOperator(
+                    leftSourceOperator, rightSourceOperator, "field1", "field1",
+                    transaction.getTransactionContext());
+
+            Iterator<Record> outputIterator = joinOperator.iterator();
+            int numRecords = 0;
+
+            Record expectedRecord = new Record(10, 10, 10).concat(new Record(10, 10, 10));
+
+            while (numRecords < 10 && outputIterator.hasNext()) {
+                assertEquals("mismatch at record " + numRecords, expectedRecord, outputIterator.next());
+                numRecords++;
+                expectedRecord = new Record(numRecords + 10, numRecords + 10, numRecords + 10)
+                        .concat(new Record(numRecords + 10, numRecords + 10, numRecords + 10));
+            }
+
+            assertFalse("too many records", outputIterator.hasNext());
+            assertEquals("too few records", 10, numRecords);
         }
     }
 
@@ -196,9 +215,7 @@ public class TestLeapFrogTrieJoin {
         d.setWorkMem(5); // B=5
         try(Transaction transaction = d.beginTransaction()) {
             setSourceOperators(
-                    // First source has 3 fields of value 1 for each record
                     TestUtils.createIncreasingSourceWith3IntFields(10, 0),
-                    // Second source has 3 fields of value 3 for each record
                     TestUtils.createIncreasingSourceWith3IntFields(10, 25),
                     transaction
             );
