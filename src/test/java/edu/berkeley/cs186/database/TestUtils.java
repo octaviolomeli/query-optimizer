@@ -1,5 +1,6 @@
 package edu.berkeley.cs186.database;
 
+import edu.berkeley.cs186.database.databox.DataBox;
 import edu.berkeley.cs186.database.databox.Type;
 import edu.berkeley.cs186.database.query.TestSourceOperator;
 import edu.berkeley.cs186.database.table.Record;
@@ -54,6 +55,34 @@ public class TestUtils {
         Schema schema = new Schema().add("int", Type.intType());
         List<Record> recordList = new ArrayList<Record>();
         for (int v : values) recordList.add(new Record(v));
+        return new TestSourceOperator(recordList, schema);
+    }
+
+    public static Record createRecordWith3Values(ArrayList<DataBox> values) {
+        if (values.size() != 3) {
+            throw new UnsupportedOperationException();
+        }
+        return new Record(values.get(0), values.get(1), values.get(2));
+    }
+
+    public static TestSourceOperator createSourceWithSame3Values(ArrayList<DataBox> values, int numRecords) {
+        Schema schema = new Schema()
+                .add("field1", values.get(0).type())
+                .add("field2", values.get(1).type())
+                .add("field3", values.get(2).type());
+        List<Record> recordList = new ArrayList<Record>();
+        for (int i = 0; i < numRecords; i++) {
+            recordList.add(createRecordWith3Values(values));
+        }
+        return new TestSourceOperator(recordList, schema);
+    }
+
+    public static TestSourceOperator createEmptySourceWith3Fields(ArrayList<DataBox> valuesForFields) {
+        Schema schema = new Schema()
+                .add("field1", valuesForFields.get(0).type())
+                .add("field2", valuesForFields.get(1).type())
+                .add("field3", valuesForFields.get(2).type());
+        List<Record> recordList = new ArrayList<Record>();
         return new TestSourceOperator(recordList, schema);
     }
 }

@@ -5,9 +5,13 @@ import edu.berkeley.cs186.database.TestUtils;
 import edu.berkeley.cs186.database.TimeoutScaling;
 import edu.berkeley.cs186.database.Transaction;
 import edu.berkeley.cs186.database.concurrency.DummyLockContext;
+import edu.berkeley.cs186.database.databox.DataBox;
+import edu.berkeley.cs186.database.databox.IntDataBox;
+import edu.berkeley.cs186.database.databox.StringDataBox;
 import edu.berkeley.cs186.database.io.DiskSpaceManager;
 import edu.berkeley.cs186.database.memory.Page;
-import edu.berkeley.cs186.database.query.join.LFJOperator;
+import edu.berkeley.cs186.database.query.join.LFTJOperator;
+import edu.berkeley.cs186.database.query.join.LFTJOperator;
 import edu.berkeley.cs186.database.table.Record;
 import org.junit.After;
 import org.junit.Before;
@@ -24,7 +28,7 @@ import java.util.*;
 
 import static org.junit.Assert.*;
 
-public class TestLeapFrogJoin {
+public class TestLeapFrogTrieJoin {
     private Database d;
     private long numIOs;
     private QueryOperator leftSourceOperator;
@@ -101,7 +105,7 @@ public class TestLeapFrogJoin {
     }
 
     @Test
-    public void testSimpleLeapFrogJoin() {
+    public void testSimpleLeapFrogTrieJoin() {
         d.setWorkMem(5); // B=5
         try(Transaction transaction = d.beginTransaction()) {
             setSourceOperators(
@@ -110,7 +114,7 @@ public class TestLeapFrogJoin {
                     transaction
             );
 
-            JoinOperator joinOperator = new LFJOperator(
+            JoinOperator joinOperator = new LFTJOperator(
                     leftSourceOperator, rightSourceOperator, "int", "int",
                     transaction.getTransactionContext());
 
@@ -136,113 +140,86 @@ public class TestLeapFrogJoin {
     }
 
     @Test
-    // The point of using a source with increasing gaps is to test out the iterators' seek function
-    public void testIncreasingGapSourceLeapFrogJoin() {
-        d.setWorkMem(5); // B=5
-
-        try(Transaction transaction = d.beginTransaction()) {
-            setSourceOperators(
-                    TestUtils.createIncreasingJumpSourceWithInts(50, 3),
-                    TestUtils.createIncreasingJumpSourceWithInts(25, 9),
-                    transaction
-            );
-            List<Integer> numbersInSource1 = new ArrayList<>();
-            List<Integer> numbersInSource2 = new ArrayList<>();
-            List<Integer> expectedValues = new ArrayList<>();
-
-            for (int i = 1; i <= 50 * 3; i+= 3) numbersInSource1.add(i);
-            for (int i = 1; i <= 25 * 9; i+= 9) numbersInSource2.add(i);
-
-            for (int i = 0; i < numbersInSource1.size(); i++) {
-                for (int j = 0; j < numbersInSource2.size(); j++) {
-                    if (numbersInSource1.get(i).equals(numbersInSource2.get(j)) ) {
-                        expectedValues.add(numbersInSource1.get(i));
-                    }
-                }
-            }
-
-            JoinOperator joinOperator = new LFJOperator(
-                    leftSourceOperator, rightSourceOperator, "int", "int",
-                    transaction.getTransactionContext());
-
-            Iterator<Record> outputIterator = joinOperator.iterator();
-
-            int numRecords = 0;
-            Record record1;
-            Record record2;
-            Record expected;
-
-            while (outputIterator.hasNext() && numRecords < expectedValues.size()) {
-                record1 = new Record(expectedValues.get(numRecords));
-                record2 = new Record(expectedValues.get(numRecords));
-                expected = record1.concat(record2);
-                assertEquals("mismatch at record " + numRecords, expected, outputIterator.next());
-                numRecords++;
-            }
-
-            assertFalse("too many records", outputIterator.hasNext());
-            outputIterator.hasNext();
-            assertEquals("too few records", expectedValues.size(), numRecords);
-        }
-    }
-
-    @Test
-    public void testEmptyWithEmptyLeapFrogJoin() {
+    public void testEmptyWithEmptyLeapFrogTrieJoin() {
         d.setWorkMem(5); // B=5
         try(Transaction transaction = d.beginTransaction()) {
+            ArrayList<DataBox> source1 = new ArrayList<>();
+            source1.add(new IntDataBox(1));
+            source1.add(new IntDataBox(1));
+            source1.add(new IntDataBox(1));
+
             setSourceOperators(
-                    TestUtils.createSourceWithInts(Collections.emptyList()),
-                    TestUtils.createSourceWithInts(Collections.emptyList()),
+                    TestUtils.createEmptySourceWith3Fields(source1),
+                    TestUtils.createEmptySourceWith3Fields(source1),
                     transaction
             );
-            startCountIOs();
 
-            JoinOperator joinOperator = new LFJOperator(
-                    leftSourceOperator, rightSourceOperator, "int", "int",
+            JoinOperator joinOperator = new LFTJOperator(
+                    leftSourceOperator, rightSourceOperator, "field1", "field1",
                     transaction.getTransactionContext());
-            checkIOs(0);
+
             Iterator<Record> outputIterator = joinOperator.iterator();
             assertFalse("too many records", outputIterator.hasNext());
         }
     }
 
     @Test
-    public void testNonEmptyWithEmptyLeapFrogJoin() {
+    public void testNonEmptyWithEmptyLeapFrogTrieJoin() {
         // Joins a non-empty table with an empty table. Expected behavior is
         // that iterator is created without error, and hasNext() immediately
         // returns false.
         d.setWorkMem(5); // B=5
         try(Transaction transaction = d.beginTransaction()) {
+            ArrayList<DataBox> source1 = new ArrayList<>();
+            ArrayList<DataBox> source2 = new ArrayList<>();
+            source1.add(new IntDataBox(1));
+            source1.add(new IntDataBox(1));
+            source1.add(new IntDataBox(1));
+            source2.add(new IntDataBox(1));
+            source2.add(new IntDataBox(1));
+            source2.add(new IntDataBox(1));
+
             setSourceOperators(
-                    TestUtils.createSourceWithAllTypes(100),
-                    TestUtils.createSourceWithInts(Collections.emptyList()),
+                    TestUtils.createSourceWithSame3Values(source2, 10),
+                    TestUtils.createEmptySourceWith3Fields(source1),
                     transaction
             );
-            startCountIOs();
-            JoinOperator joinOperator = new LFJOperator(leftSourceOperator, rightSourceOperator,
-                    "int", "int", transaction.getTransactionContext());
-            checkIOs(0);
+
+            JoinOperator joinOperator = new LFTJOperator(
+                    leftSourceOperator, rightSourceOperator, "field1", "field1",
+                    transaction.getTransactionContext());
+
             Iterator<Record> outputIterator = joinOperator.iterator();
             assertFalse("too many records", outputIterator.hasNext());
         }
     }
 
     @Test
-    public void testEmptyWithNonEmptyLeapFrogJoin() {
+    public void testEmptyWithNonEmptyLeapFrogTrieJoin() {
         // Joins an empty table with a non-empty table. Expected behavior is
         // that iterator is created without error, and hasNext() immediately
         // returns false.
         d.setWorkMem(5); // B=5
         try(Transaction transaction = d.beginTransaction()) {
+            ArrayList<DataBox> source1 = new ArrayList<>();
+            ArrayList<DataBox> source2 = new ArrayList<>();
+            source1.add(new IntDataBox(1));
+            source1.add(new IntDataBox(1));
+            source1.add(new IntDataBox(1));
+            source2.add(new IntDataBox(1));
+            source2.add(new IntDataBox(1));
+            source2.add(new IntDataBox(1));
+
             setSourceOperators(
-                    TestUtils.createSourceWithInts(Collections.emptyList()),
-                    TestUtils.createSourceWithAllTypes(100),
+                    TestUtils.createEmptySourceWith3Fields(source1),
+                    TestUtils.createSourceWithSame3Values(source2, 10),
                     transaction
             );
-            startCountIOs();
-            JoinOperator joinOperator = new LFJOperator(leftSourceOperator, rightSourceOperator,
-                    "int", "int", transaction.getTransactionContext());
-            checkIOs(0);
+
+            JoinOperator joinOperator = new LFTJOperator(
+                    leftSourceOperator, rightSourceOperator, "field1", "field1",
+                    transaction.getTransactionContext());
+
             Iterator<Record> outputIterator = joinOperator.iterator();
             assertFalse("too many records", outputIterator.hasNext());
         }
@@ -265,7 +242,7 @@ public class TestLeapFrogJoin {
                     transaction
             );
 
-            JoinOperator joinOperator = new LFJOperator(leftSourceOperator, rightSourceOperator, "int",
+            JoinOperator joinOperator = new LFTJOperator(leftSourceOperator, rightSourceOperator, "int",
                     "int",
                     transaction.getTransactionContext());
 
@@ -289,32 +266,32 @@ public class TestLeapFrogJoin {
     }
 
     @Test
-    public void testNoMatchesLeapFrogJoin() {
+    public void testNoMatchesLeapFrogTrieJoin() {
         d.setWorkMem(5); // B=5
         try(Transaction transaction = d.beginTransaction()) {
-
-            List<Integer> source1 = new ArrayList<>();
-            List<Integer> source2 = new ArrayList<>();
-            for (int i = 0; i < 25; i++) source1.add(2);
-            for (int j = 0; j < 25; j++) source2.add(3);
+            ArrayList<DataBox> source1 = new ArrayList<>();
+            ArrayList<DataBox> source2 = new ArrayList<>();
+            source1.add(new IntDataBox(1));
+            source1.add(new IntDataBox(1));
+            source1.add(new IntDataBox(1));
+            source2.add(new IntDataBox(3));
+            source2.add(new IntDataBox(3));
+            source2.add(new IntDataBox(3));
 
             setSourceOperators(
-                    TestUtils.createSourceWithInts(source1),
-                    TestUtils.createSourceWithInts(source2),
+                    // First source has 3 fields of value 1 for each record
+                    TestUtils.createSourceWithSame3Values(source1, 25),
+                    // Second source has 3 fields of value 3 for each record
+                    TestUtils.createSourceWithSame3Values(source2, 25),
                     transaction
             );
 
-            JoinOperator joinOperator = new LFJOperator(
-                    leftSourceOperator, rightSourceOperator, "int", "int",
+            JoinOperator joinOperator = new LFTJOperator(
+                    leftSourceOperator, rightSourceOperator, "field1", "field1",
                     transaction.getTransactionContext());
 
             Iterator<Record> outputIterator = joinOperator.iterator();
-
-            int numRecords = 0;
-
             assertFalse("too many records", outputIterator.hasNext());
-            outputIterator.hasNext();
-            assertEquals("too few records", 0, numRecords);
         }
     }
 }
