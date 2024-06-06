@@ -187,13 +187,15 @@ public class LFJOperator extends JoinOperator {
     // Iterator for one source. Helper iterator for LeapfrogJoinIterator.
     private static class LeapfrogIterator {
         private int index;
+        private int markIndex;
         LFJOperator outsideOperator;
         ArrayList<Record> sourceList = new ArrayList<>();
 
         private LeapfrogIterator(QueryOperator recordSource, LFJOperator outsideOperator) {
             this.outsideOperator = outsideOperator;
             recordSource.iterator().forEachRemaining(sourceList::add);
-            index = 0;
+            this.index = 0;
+            this.markIndex = -1;
         }
 
         // True when iterator is at the end
@@ -244,6 +246,16 @@ public class LFJOperator extends JoinOperator {
                 return null;
             }
             return sourceList.get(index);
+        }
+
+        public void mark() {
+            this.markIndex = index;
+        }
+
+        public void resetToMark() {
+            if (this.markIndex != -1) {
+                this.index = markIndex;
+            }
         }
     }
 }
