@@ -317,4 +317,61 @@ public class TestLeapFrogJoin {
             assertEquals("too few records", 0, numRecords);
         }
     }
+
+    @Test
+    public void testAllMatchesLeapFrogJoin() {
+        d.setWorkMem(5); // B=5
+        try(Transaction transaction = d.beginTransaction()) {
+            setSourceOperators(
+                    TestUtils.createSourceWithAllTypes(100),
+                    TestUtils.createSourceWithAllTypes(100),
+                    transaction
+            );
+
+            JoinOperator joinOperator = new LFJOperator(
+                    leftSourceOperator, rightSourceOperator, "int", "int",
+                    transaction.getTransactionContext());
+
+            Iterator<Record> outputIterator = joinOperator.iterator();
+
+            int numRecords = 0;
+            Record expected = new Record(true, 1, "a", 1.2f, true, 1, "a", 1.2f);
+
+            while (outputIterator.hasNext() && numRecords < 100 * 100) {
+                assertEquals("mismatch at record " + numRecords, expected, outputIterator.next());
+                numRecords++;
+            }
+
+            assertFalse("too many records", outputIterator.hasNext());
+            assertEquals("too few records", 100 * 100, numRecords);
+        }
+    }
+    @Test
+    public void testAllMatchesBut1LeapFrogJoin() {
+        d.setWorkMem(5); // B=5
+        try(Transaction transaction = d.beginTransaction()) {
+            setSourceOperators(
+                    TestUtils.createSourceWithAllTypesExcept1V1(100),
+                    TestUtils.createSourceWithAllTypesExcept1V2(100),
+                    transaction
+            );
+
+            JoinOperator joinOperator = new LFJOperator(
+                    leftSourceOperator, rightSourceOperator, "int", "int",
+                    transaction.getTransactionContext());
+
+            Iterator<Record> outputIterator = joinOperator.iterator();
+
+            int numRecords = 0;
+            Record expected = new Record(true, 1, "a", 1.2f, true, 1, "a", 1.2f);
+
+            while (outputIterator.hasNext() && numRecords < 99 * 99) {
+                assertEquals("mismatch at record " + numRecords, expected, outputIterator.next());
+                numRecords++;
+            }
+
+            assertFalse("too many records", outputIterator.hasNext());
+            assertEquals("too few records", 99 * 99, numRecords);
+        }
+    }
 }
