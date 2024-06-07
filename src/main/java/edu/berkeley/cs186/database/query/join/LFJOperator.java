@@ -73,12 +73,14 @@ public class LFJOperator extends JoinOperator {
         private boolean atEnd;
         private int p;
         private final LeapfrogIterator[] iters;
+        private ArrayList<Record> savedRecordsToReturn;
 
         private LeapfrogJoinIterator(LFJOperator lfo) {
             super();
             leftIterator = new LeapfrogIterator(getLeftSource(), lfo);
             rightIterator = new LeapfrogIterator(getRightSource(), lfo);
 
+            savedRecordsToReturn = new ArrayList<>();
             iters = new LeapfrogIterator[2];
             iters[0] = leftIterator;
             iters[1] = rightIterator;
@@ -91,7 +93,11 @@ public class LFJOperator extends JoinOperator {
          */
         @Override
         public boolean hasNext() {
-            if (this.nextRecord == null) this.nextRecord = fetchNextRecord();
+            if (this.nextRecord == null && !this.savedRecordsToReturn.isEmpty()){
+                this.nextRecord = savedRecordsToReturn.remove(0);
+            } else if (this.nextRecord == null){
+                this.nextRecord = fetchNextRecord();
+            }
             return this.nextRecord != null;
         }
 
@@ -144,7 +150,17 @@ public class LFJOperator extends JoinOperator {
                 }
                 if (compare(x, y) == 0) {
                     // All iters at same key
-                    return x.concat(y);
+                    for (Integer indexX : iters[p].indicesWithValue(x)) {
+                        for (Integer indexY : iters[Math.floorMod(p - 1, 2)].indicesWithValue(y)) {
+                            this.savedRecordsToReturn.add(
+                                    iters[p].keyAt(indexX)
+                                    .concat(iters[Math.floorMod(p - 1, 2)].keyAt(indexY)));
+                            iters[p].resetToIndex(indexX);
+                            iters[Math.floorMod(p - 1, 2)].resetToIndex(indexY);
+                        }
+                    }
+
+                    return savedRecordsToReturn.remove(0);
                 } else {
                     iters[p].seek(y);
                     if (iters[p].atEnd()) {
@@ -238,6 +254,10 @@ public class LFJOperator extends JoinOperator {
             index = low;
         }
 
+        public void resetToIndex(int position) {
+            this.index = position;
+        }
+
         // Returns the key at the current iterator position.
         public Record key() {
             if (atEnd()) {
@@ -246,9 +266,8 @@ public class LFJOperator extends JoinOperator {
             return sourceList.get(index);
         }
 
-        // Return to a specified index
-        public void resetToIndex(int newIndex) {
-            this.index = newIndex;
+        public Record keyAt(int position) {
+            return sourceList.get(position);
         }
 
         // Given a value, return list of indices in sourceList that have that value.
@@ -302,9 +321,3 @@ public class LFJOperator extends JoinOperator {
         }
     }
 }
-
-/*
-    LeapfrogJoinIterator:
-        When on an aligned value: Use f1 on both iterators and return each combination
-        Then move each iterator ahead to index after greatest index from f1
- */
