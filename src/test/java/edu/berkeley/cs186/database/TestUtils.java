@@ -31,6 +31,24 @@ public class TestUtils {
         return new TestSourceOperator(records, schema);
     }
 
+    public static TestSourceOperator createSourceWithAllTypesExcept1V1(int numRecords) {
+        Schema schema = createSchemaWithAllTypes();
+        List<Record> records = new ArrayList<>();
+        for (int i = 0; i < numRecords - 1; i++)
+            records.add(createRecordWithAllTypes());
+        records.add(new Record(false, 3, "b", 1.9f));
+        return new TestSourceOperator(records, schema);
+    }
+
+    public static TestSourceOperator createSourceWithAllTypesExcept1V2(int numRecords) {
+        Schema schema = createSchemaWithAllTypes();
+        List<Record> records = new ArrayList<>();
+        for (int i = 0; i < numRecords - 1; i++)
+            records.add(createRecordWithAllTypes());
+        records.add(new Record(false, 4, "d", 5.9f));
+        return new TestSourceOperator(records, schema);
+    }
+
     public static TestSourceOperator createIncreasingSourceWithAllTypes(int numRecords) {
         Schema schema = createSchemaWithAllTypes();
         List<Record> records = new ArrayList<>();
