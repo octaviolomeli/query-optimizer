@@ -219,7 +219,7 @@ public class LFJOperator extends JoinOperator {
             if (seekKey == null || key() == null) {
                 return;
             }
-            if (outsideOperator.compare(seekKey, key()) < 0) {
+            if (outsideOperator.compare(seekKey, key()) <= 0) {
                 return;
             }
 
@@ -245,13 +245,65 @@ public class LFJOperator extends JoinOperator {
             }
             return sourceList.get(index);
         }
+
+        // Return to a specified index
+        public void resetToIndex(int newIndex) {
+            this.index = newIndex;
+        }
+
+        // Given a value, return list of indices in sourceList that have that value.
+        public List<Integer> indicesWithValue(Record seekValue) {
+            List<Integer> indices = new ArrayList<>();
+            int startIndex = binarySearch(seekValue);
+
+            if (startIndex < 0) {
+                // Value not found
+                return indices;
+            }
+
+            // Expand to find all occurrences
+            int left = startIndex;
+            while (left >= 0 && outsideOperator.compare(sourceList.get(left), seekValue) == 0) {
+                indices.add(left);
+                left--;
+            }
+            int right = startIndex + 1;
+            while (right < sourceList.size() && outsideOperator.compare(sourceList.get(right), seekValue) == 0) {
+                indices.add(right);
+                right++;
+            }
+
+            Collections.sort(indices); // Ensure indices are in ascending order
+            return indices;
+        }
+
+        private int binarySearch(Record value) {
+            int left = 0;
+            int right = sourceList.size() - 1;
+
+            while (left <= right) {
+                int mid = left + (right - left) / 2;
+                int cmp = outsideOperator.compare(sourceList.get(mid), value);
+
+                if (cmp < 0) {
+                    left = mid + 1;
+                } else if (cmp > 0) {
+                    right = mid - 1;
+                } else {
+                    // Ensure finding the first occurrence
+                    if (mid == 0 || outsideOperator.compare(sourceList.get(mid - 1), value) != 0) {
+                        return mid;
+                    } else {
+                        right = mid - 1;
+                    }
+                }
+            }
+            return -1; // Value not found
+        }
     }
 }
 
 /*
-    LeapfrogIterator:
-        f1: Given a value, return list of indices in sourceList that have that value.
-        Reset to index -> Reset iterator position to index
     LeapfrogJoinIterator:
         When on an aligned value: Use f1 on both iterators and return each combination
         Then move each iterator ahead to index after greatest index from f1
