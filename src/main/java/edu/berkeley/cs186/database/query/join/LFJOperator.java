@@ -1,6 +1,7 @@
 package edu.berkeley.cs186.database.query.join;
 
 import edu.berkeley.cs186.database.TransactionContext;
+import edu.berkeley.cs186.database.databox.DataBox;
 import edu.berkeley.cs186.database.query.JoinOperator;
 import edu.berkeley.cs186.database.query.QueryOperator;
 import edu.berkeley.cs186.database.query.SortOperator;
@@ -51,7 +52,7 @@ public class LFJOperator extends JoinOperator {
 
     @Override
     public Iterator<Record> iterator() {
-        return new LeapfrogJoinIterator(this);
+        return new LeapfrogJoinIterator();
     }
 
     @Override
@@ -74,10 +75,10 @@ public class LFJOperator extends JoinOperator {
         private int p;
         private final LeapfrogIterator[] iters;
 
-        private LeapfrogJoinIterator(LFJOperator lfo) {
+        private LeapfrogJoinIterator() {
             super();
-            leftIterator = new LeapfrogIterator(getLeftSource(), lfo);
-            rightIterator = new LeapfrogIterator(getRightSource(), lfo);
+            leftIterator = new LeapfrogIterator(getLeftSource(), getLeftColumnIndex());
+            rightIterator = new LeapfrogIterator(getRightSource(), getRightColumnIndex());
 
             iters = new LeapfrogIterator[2];
             iters[0] = leftIterator;
@@ -122,7 +123,7 @@ public class LFJOperator extends JoinOperator {
                 return;
             }
             this.atEnd = false;
-            if (compare(leftIterator.key(), rightIterator.key()) < 0) {
+            if (leftIterator.key().compareTo(rightIterator.key()) < 0) {
                 iters[0] = leftIterator;
                 iters[1] = rightIterator;
             } else {
@@ -135,16 +136,16 @@ public class LFJOperator extends JoinOperator {
 
         // Find the next record to join
         public Record leapfrog_search() {
-            Record y = iters[Math.floorMod(p - 1, 2)].key(); // Max key of any iter
+            DataBox y = iters[Math.floorMod(p - 1, 2)].key(); // Max key of any iter
             while (true) {
-                Record x = iters[p].key(); // Least key of any iterator
+                DataBox x = iters[p].key(); // Least key of any iterator
                 if (x == null) {
                     this.atEnd = true;
                     return null;
                 }
-                if (compare(x, y) == 0) {
+                if (x.compareTo(y) == 0) {
                     // All iters at same key
-                    return x.concat(y);
+                    return iters[p].record().concat(iters[Math.floorMod(p - 1, 2)].record());
                 } else {
                     iters[p].seek(y);
                     if (iters[p].atEnd()) {
@@ -186,16 +187,15 @@ public class LFJOperator extends JoinOperator {
 
     // Iterator for one source. Helper iterator for LeapfrogJoinIterator.
     private static class LeapfrogIterator {
+        private final int columnIndex;
         private int index;
-        private int markIndex;
-        LFJOperator outsideOperator;
-        ArrayList<Record> sourceList = new ArrayList<>();
+        private ArrayList<Record> sourceList;
 
-        private LeapfrogIterator(QueryOperator recordSource, LFJOperator outsideOperator) {
-            this.outsideOperator = outsideOperator;
+        private LeapfrogIterator(QueryOperator recordSource, int columnIndex) {
+            this.columnIndex = columnIndex;
+            this.sourceList = new ArrayList<>();
             recordSource.iterator().forEachRemaining(sourceList::add);
             this.index = 0;
-            this.markIndex = -1;
         }
 
         // True when iterator is at the end
@@ -217,11 +217,11 @@ public class LFJOperator extends JoinOperator {
 
             Sought key must be ≥ the key at the current position.
         */
-        public void seek(Record seekKey) {
+        public void seek(DataBox seekKey) {
             if (seekKey == null || key() == null) {
                 return;
             }
-            if (outsideOperator.compare(seekKey, key()) < 0) {
+            if (seekKey.compareTo(key()) < 0) {
                 return;
             }
 
@@ -231,7 +231,7 @@ public class LFJOperator extends JoinOperator {
 
             while (low <= high) {
                 int mid = (low + high) / 2;
-                if (outsideOperator.compare(sourceList.get(mid), seekKey) < 0) {
+                if (sourceList.get(mid).getValue(columnIndex).compareTo(seekKey) < 0) {
                     low = mid + 1;
                 } else {
                     high = mid - 1;
@@ -241,21 +241,27 @@ public class LFJOperator extends JoinOperator {
         }
 
         // Returns the key at the current iterator position.
-        public Record key() {
+        public DataBox key() {
+            if (atEnd()) {
+                return null;
+            }
+            return sourceList.get(index).getValue(columnIndex);
+        }
+
+        public Record record() {
             if (atEnd()) {
                 return null;
             }
             return sourceList.get(index);
         }
-
-        public void mark() {
-            this.markIndex = index;
-        }
-
-        public void resetToMark() {
-            if (this.markIndex != -1) {
-                this.index = markIndex;
-            }
-        }
     }
 }
+
+/*
+    LeapfrogIterator:
+        f1: Given a value, return list of indices in sourceList that have that value.
+        Reset to index -> Reset iterator position to index
+    LeapfrogJoinIterator:
+        When on an aligned value: Use f1 on both iterators and return each combination
+        Then move each iterator ahead to index after greatest index from f1
+ */
