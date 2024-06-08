@@ -20,8 +20,8 @@ public class INLJOperator extends JoinOperator {
     public INLJOperator(QueryOperator leftSource, QueryOperator rightSource,
                         String leftColumnName, String rightColumnName,
                         TransactionContext transaction, String rightTableName) {
-        super(leftSource, materialize(rightSource, transaction), leftColumnName,
-                                    rightColumnName, transaction, JoinType.INLJ);
+        super(leftSource, materialize(rightSource, transaction), makeArrayListWith(leftColumnName),
+                makeArrayListWith(rightColumnName), transaction, JoinType.INLJ);
         this.stats = this.estimateStats();
         this.rightTableName = rightTableName;
     }

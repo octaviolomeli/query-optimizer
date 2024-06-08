@@ -29,7 +29,7 @@ public class SHJOperator extends JoinOperator {
                        String leftColumnName,
                        String rightColumnName,
                        TransactionContext transaction) {
-        super(leftSource, rightSource, leftColumnName, rightColumnName, transaction, JoinType.SHJ);
+        super(leftSource, rightSource, makeArrayListWith(leftColumnName), makeArrayListWith(rightColumnName), transaction, JoinType.SHJ);
         this.numBuffers = transaction.getWorkMemSize();
         this.stats = this.estimateStats();
         this.joinedRecords = null;

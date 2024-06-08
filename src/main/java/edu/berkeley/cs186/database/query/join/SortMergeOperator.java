@@ -8,10 +8,7 @@ import edu.berkeley.cs186.database.query.QueryOperator;
 import edu.berkeley.cs186.database.query.SortOperator;
 import edu.berkeley.cs186.database.table.Record;
 
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NoSuchElementException;
+import java.util.*;
 
 public class SortMergeOperator extends JoinOperator {
     public SortMergeOperator(QueryOperator leftSource,
@@ -21,7 +18,7 @@ public class SortMergeOperator extends JoinOperator {
                              TransactionContext transaction) {
         super(prepareLeft(transaction, leftSource, leftColumnName),
               prepareRight(transaction, rightSource, rightColumnName),
-              leftColumnName, rightColumnName, transaction, JoinType.SORTMERGE);
+                makeArrayListWith(leftColumnName), makeArrayListWith(rightColumnName), transaction, JoinType.SORTMERGE);
         this.stats = this.estimateStats();
     }
 

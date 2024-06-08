@@ -6,6 +6,8 @@ import edu.berkeley.cs186.database.table.Record;
 import edu.berkeley.cs186.database.table.Schema;
 import edu.berkeley.cs186.database.table.stats.TableStats;
 
+import java.util.ArrayList;
+
 public abstract class JoinOperator extends QueryOperator {
     public enum JoinType {
         SNLJ,
@@ -25,12 +27,12 @@ public abstract class JoinOperator extends QueryOperator {
     private QueryOperator rightSource;
 
     // join column indices
-    private int leftColumnIndex;
-    private int rightColumnIndex;
+    private ArrayList<Integer> leftColumnIndexes;
+    private ArrayList<Integer> rightColumnIndexes;
 
     // join column names
-    private String leftColumnName;
-    private String rightColumnName;
+    private ArrayList<String> leftColumnNames;
+    private ArrayList<String> rightColumnNames;
 
     // current transaction
     private TransactionContext transaction;
@@ -41,21 +43,23 @@ public abstract class JoinOperator extends QueryOperator {
      *
      * @param leftSource the left source operator
      * @param rightSource the right source operator
-     * @param leftColumnName the column to join on from leftSource
-     * @param rightColumnName the column to join on from rightSource
+     * @param leftColumnNames the column(s) to join on from leftSource
+     * @param rightColumnNames the column(s) to join on from rightSource
      */
     public JoinOperator(QueryOperator leftSource,
                  QueryOperator rightSource,
-                 String leftColumnName,
-                 String rightColumnName,
+                 ArrayList<String> leftColumnNames,
+                 ArrayList<String> rightColumnNames,
                  TransactionContext transaction,
                  JoinType joinType) {
         super(OperatorType.JOIN);
         this.joinType = joinType;
         this.leftSource = leftSource;
         this.rightSource = rightSource;
-        this.leftColumnName = leftColumnName;
-        this.rightColumnName = rightColumnName;
+        this.leftColumnNames = leftColumnNames;
+        this.rightColumnNames = rightColumnNames;
+        this.leftColumnIndexes = new ArrayList<>();
+        this.rightColumnIndexes = new ArrayList<>();
         this.setOutputSchema(this.computeSchema());
         this.transaction = transaction;
     }
@@ -73,8 +77,13 @@ public abstract class JoinOperator extends QueryOperator {
         Schema rightSchema = this.rightSource.getSchema();
 
         // Set up join column attributes
-        this.leftColumnIndex = leftSchema.findField(this.leftColumnName);
-        this.rightColumnIndex = rightSchema.findField(this.rightColumnName);
+        for (String leftColumn : leftColumnNames) {
+            this.leftColumnIndexes.add(leftSchema.findField(leftColumn));
+        }
+
+        for (String rightColumn : rightColumnNames) {
+            this.rightColumnIndexes.add(rightSchema.findField(rightColumn));
+        }
 
         // Return concatenated schema
         return leftSchema.concat(rightSchema);
@@ -83,7 +92,7 @@ public abstract class JoinOperator extends QueryOperator {
     @Override
     public String str() {
         return String.format("%s on %s=%s (cost=%d)",
-                this.joinType, this.leftColumnName, this.rightColumnName,
+                this.joinType, this.leftColumnNames.toString(), this.rightColumnNames.toString(),
                 this.estimateIOCost());
     }
 
@@ -108,9 +117,9 @@ public abstract class JoinOperator extends QueryOperator {
     public TableStats estimateStats() {
         TableStats leftStats = this.leftSource.estimateStats();
         TableStats rightStats = this.rightSource.estimateStats();
-        return leftStats.copyWithJoin(this.leftColumnIndex,
+        return leftStats.copyWithJoin(this.leftColumnIndexes.get(0),
                 rightStats,
-                this.rightColumnIndex);
+                this.rightColumnIndexes.get(0));
     }
 
     /**
@@ -138,14 +147,22 @@ public abstract class JoinOperator extends QueryOperator {
      * @return the name of the left column being joined on
      */
     public String getLeftColumnName() {
-        return this.leftColumnName;
+        return this.leftColumnNames.get(0);
+    }
+
+    public ArrayList<String> getLeftColumnNames() {
+        return this.leftColumnNames;
     }
 
     /**
      * @return the name of the right column being joined on
      */
     public String getRightColumnName() {
-        return this.rightColumnName;
+        return this.rightColumnNames.get(0);
+    }
+
+    public ArrayList<String> getRightColumnNames() {
+        return this.rightColumnNames;
     }
 
     /**
@@ -154,7 +171,11 @@ public abstract class JoinOperator extends QueryOperator {
      * to check for equality on.
      */
     public int getLeftColumnIndex() {
-        return this.leftColumnIndex;
+        return this.leftColumnIndexes.get(0);
+    }
+
+    public ArrayList<Integer> getLeftColumnIndexes() {
+        return this.leftColumnIndexes;
     }
 
     /**
@@ -163,7 +184,11 @@ public abstract class JoinOperator extends QueryOperator {
      * to check for equality on.
      */
     public int getRightColumnIndex() {
-        return this.rightColumnIndex;
+        return this.rightColumnIndexes.get(0);
+    }
+
+    public ArrayList<Integer> getRightColumnIndexes() {
+        return this.rightColumnIndexes;
     }
 
     // Helpers /////////////////////////////////////////////////////////////////
@@ -174,9 +199,37 @@ public abstract class JoinOperator extends QueryOperator {
      * join value, or a positive value if leftRecord's join value is greater
      * than rightRecord's join value.
      */
+    // Count how many are 0, how many are negative, how many are positive
     public int compare(Record leftRecord, Record rightRecord) {
-        DataBox leftRecordValue = leftRecord.getValue(this.leftColumnIndex);
-        DataBox rightRecordValue = rightRecord.getValue(this.rightColumnIndex);
-        return leftRecordValue.compareTo(rightRecordValue);
+
+        // 0 = negative, 1 = equal, 2 = positive
+        int [] comparisons = new int[]{0, 0, 0};
+
+        for (int i = 0; i < leftColumnIndexes.size(); i++) {
+            DataBox leftRecordValue = leftRecord.getValue(leftColumnIndexes.get(i));
+            DataBox rightRecordValue = rightRecord.getValue(rightColumnIndexes.get(i));
+
+            int compareValue = leftRecordValue.compareTo(rightRecordValue);
+            if (compareValue == 0) {
+                comparisons[1] += 1;
+            } else if (compareValue < 0) {
+                comparisons[0] += 1;
+            } else {
+                comparisons[2] += 1;
+            }
+        }
+
+        if (comparisons[2] > comparisons[1] && comparisons[2] > comparisons[0]) {
+            return 1;
+        }  else if (comparisons[1] > comparisons[2] && comparisons[1] > comparisons[0]) {
+            return 0;
+        }
+        return -1;
+    }
+
+    public static ArrayList<String> makeArrayListWith(String columnName) {
+        ArrayList<String> columnNames = new ArrayList<>();
+        columnNames.add(columnName);
+        return columnNames;
     }
 }

@@ -19,7 +19,7 @@ public class LFJOperator extends JoinOperator {
                        TransactionContext transaction) {
         super(prepareLeft(transaction, leftSource, leftColumnName),
                 prepareRight(transaction, rightSource, rightColumnName),
-                leftColumnName, rightColumnName, transaction, JoinType.LFJ);
+                makeArrayListWith(leftColumnName), makeArrayListWith(rightColumnName), transaction, JoinType.LFJ);
         this.stats = this.estimateStats();
     }
 

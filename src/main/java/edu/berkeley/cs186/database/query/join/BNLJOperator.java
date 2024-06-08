@@ -6,6 +6,7 @@ import edu.berkeley.cs186.database.query.JoinOperator;
 import edu.berkeley.cs186.database.query.QueryOperator;
 import edu.berkeley.cs186.database.table.Record;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
@@ -22,7 +23,7 @@ public class BNLJOperator extends JoinOperator {
                         String rightColumnName,
                         TransactionContext transaction) {
         super(leftSource, materialize(rightSource, transaction),
-                leftColumnName, rightColumnName, transaction, JoinType.BNLJ
+                makeArrayListWith(leftColumnName), makeArrayListWith(rightColumnName), transaction, JoinType.BNLJ
         );
         this.numBuffers = transaction.getWorkMemSize();
         this.stats = this.estimateStats();

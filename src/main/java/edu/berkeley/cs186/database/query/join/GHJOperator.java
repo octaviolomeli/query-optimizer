@@ -23,7 +23,7 @@ public class GHJOperator extends JoinOperator {
                        String leftColumnName,
                        String rightColumnName,
                        TransactionContext transaction) {
-        super(leftSource, rightSource, leftColumnName, rightColumnName, transaction, JoinType.GHJ);
+        super(leftSource, rightSource, makeArrayListWith(leftColumnName), makeArrayListWith(rightColumnName), transaction, JoinType.GHJ);
         this.numBuffers = transaction.getWorkMemSize();
         this.stats = this.estimateStats();
         this.joinedRecords = null;
