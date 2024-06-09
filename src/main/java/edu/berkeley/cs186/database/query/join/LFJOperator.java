@@ -73,7 +73,8 @@ public class LFJOperator extends JoinOperator {
         private boolean atEnd;
         private int p;
         private final LeapfrogIterator[] iters;
-        private ArrayList<Record> savedRecordsToReturn;
+        // Stores duplicates
+        private final ArrayList<Record> savedRecordsToReturn;
 
         private LeapfrogJoinIterator(LFJOperator lfo) {
             super();
