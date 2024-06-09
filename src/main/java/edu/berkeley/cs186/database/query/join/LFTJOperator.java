@@ -126,12 +126,12 @@ public class LFTJOperator extends JoinOperator {
     }
 
     public class TrieNode {
-        private HashMap<DataBox, TrieNode> children;
-        private ArrayList<DataBox> sortedChildren;
+        public HashMap<DataBox, TrieNode> children;
+        public ArrayList<DataBox> sortedChildren;
         private int indexOfChildLastVisited;
         private TrieNode parent;
-        private boolean isEnd;
         private Record record;
+        private final DataBox value;
         private final boolean isLeftSource;
 
         public TrieNode(boolean isLeftSource) {
@@ -139,25 +139,27 @@ public class LFTJOperator extends JoinOperator {
             this.sortedChildren = new ArrayList<>();
             this.indexOfChildLastVisited = -1;
             this.parent = null;
-            this.isEnd = false;
             this.record = null;
+            this.value = null;
+            this.isLeftSource = isLeftSource;
+        }
+
+        public TrieNode(boolean isLeftSource, DataBox value) {
+            this.children = new HashMap<>();
+            this.sortedChildren = new ArrayList<>();
+            this.indexOfChildLastVisited = -1;
+            this.parent = null;
+            this.record = null;
+            this.value = value;
             this.isLeftSource = isLeftSource;
         }
 
         // Insert the values from a record into the Trie
         public void insert(Record record, int indexInCI) {
-            // Invalid
-            if (this.isLeftSource && indexInCI >= getLeftColumnIndexes().size()) {
-                return;
-            } else if (!this.isLeftSource && indexInCI >= getRightColumnIndexes().size()) {
-                return;
-            }
             // Last index
             if (this.isLeftSource && indexInCI == getLeftColumnIndexes().size() - 1) {
-                this.isEnd = true;
                 this.record = record;
             } else if (!this.isLeftSource && indexInCI == getRightColumnIndexes().size() - 1) {
-                this.isEnd = true;
                 this.record = record;
             }
             DataBox keyToInsert;
@@ -168,13 +170,13 @@ public class LFTJOperator extends JoinOperator {
                 indexInRecord = getRightColumnIndexes().get(indexInCI);
             }
             keyToInsert = record.getValue(indexInRecord);
-            children.put(keyToInsert, new TrieNode(isLeftSource));
+            children.put(keyToInsert, new TrieNode(isLeftSource, keyToInsert));
             children.get(keyToInsert).parent = this;
             children.get(keyToInsert).insert(record, indexInCI + 1);
         }
 
         public boolean isEnd() {
-            return this.isEnd;
+            return record != null;
         }
 
         public TrieNode getParent() {
@@ -190,9 +192,14 @@ public class LFTJOperator extends JoinOperator {
         }
 
         public Record getRecord() {
+            if (isEnd()) {
+                throw new NoSuchElementException();
+            }
             return this.record;
         }
 
+        // Sort the children of this TrieNode
+        // Use after all insertions are finished
         public void sortChildren() {
             ArrayList<DataBox> childrenSorted = new ArrayList<>(children.keySet());
             childrenSorted.sort(new DataBoxComparator());
