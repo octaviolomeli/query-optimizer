@@ -90,38 +90,66 @@ public class LFTJOperator extends JoinOperator {
     private class LeapfrogTrieIterator {
         TrieNode trieRoot;
         TrieNode currNode;
-        // Index for the current node's children
-        int currentIndexInSortedChildren = 0;
-        int depth = -1;
 
         private LeapfrogTrieIterator(QueryOperator recordSource, boolean isLeftSource) {
             trieRoot = new TrieNode(isLeftSource);
+            currNode = trieRoot;
+            // Insert all records
             for (Record rec : recordSource) {
                 trieRoot.insert(rec, 0);
             }
-            currNode = trieRoot;
+            trieRoot.sortChildren();
         }
 
         // Proceed to the first key at the next depth
         public void open() {
-
+            DataBox childKey = currNode.sortedChildren.get(0);
+            currNode.setIndexOfChildLastVisited(0);
+            currNode = currNode.children.get(childKey);
         }
 
         // Return to the parent key at the previous depth
-        public boolean up() {
-            if (depth == -1 || currNode.getParent() == null) {
+        public void up() {
+            if (currNode == trieRoot) {
+                throw new UnsupportedOperationException();
+            }
+            currNode = currNode.parent;
+        }
+
+        // Go to sibling node on the same level.
+        public void next() {
+            if (atEnd()) {
+                throw new NoSuchElementException();
+            }
+            int parentChildIndex = currNode.getParent().getIndexOfChildLastVisited();
+            int nextChild = parentChildIndex + 1;
+            currNode.getParent().setIndexOfChildLastVisited(nextChild);
+            DataBox keyToVisit = currNode.getParent().sortedChildren.get(nextChild);
+            currNode = currNode.getParent().children.get(keyToVisit);
+        }
+
+        // Go to sibling node on the same level that has key ≥ seekKey
+        // Return true if the iterator moved to a new position
+        public boolean seek(DataBox seekKey) {
+            currNode = currNode.getParent();
+            int indexOfSeekKey = Collections.binarySearch(currNode.sortedChildren, seekKey, new DataBoxComparator());
+            if (indexOfSeekKey < 0) {
                 return false;
             }
-            currNode = currNode.getParent();
+            currNode = currNode.children.get(currNode.sortedChildren.get(indexOfSeekKey));
             return true;
         }
 
-        public void next() {
-
-        }
-
+        /*
+            Check if end of this level.
+            Go to parent and see if any next children exists.
+        */
         public boolean atEnd() {
-            return false;
+            if (currNode == trieRoot) {
+                throw new UnsupportedOperationException();
+            }
+            int parentChildIndex = currNode.getParent().getIndexOfChildLastVisited();
+            return parentChildIndex == currNode.getParent().children.size() - 1;
         }
     }
 
@@ -180,6 +208,9 @@ public class LFTJOperator extends JoinOperator {
         }
 
         public TrieNode getParent() {
+            if (this.parent == null) {
+                throw new NoSuchElementException();
+            }
             return this.parent;
         }
 
@@ -198,12 +229,17 @@ public class LFTJOperator extends JoinOperator {
             return this.record;
         }
 
-        // Sort the children of this TrieNode
-        // Use after all insertions are finished
+        // Sort the children of this TrieNode and recurse
         public void sortChildren() {
+            if (sortedChildren.isEmpty()) {
+                return;
+            }
             ArrayList<DataBox> childrenSorted = new ArrayList<>(children.keySet());
             childrenSorted.sort(new DataBoxComparator());
             sortedChildren = childrenSorted;
+            for (TrieNode child : children.values()) {
+                child.sortChildren();
+            }
         }
     }
 
