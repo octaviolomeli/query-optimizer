@@ -40,12 +40,16 @@ public class LFTJOperator extends JoinOperator {
         private final LeapfrogTrieIterator[] iters;
         // Stores duplicates to return
         private final ArrayList<Record> savedRecordsToReturn;
+        private int depth;
+        private final int maxDepth;
 
         private LeapfrogTrieJoinIterator() {
             super();
             LeapfrogTrieIterator leftIterator = new LeapfrogTrieIterator(getLeftSource(), true);
             LeapfrogTrieIterator rightIterator = new LeapfrogTrieIterator(getRightSource(), false);
             savedRecordsToReturn = new ArrayList<>();
+            depth = -1;
+            maxDepth = getLeftColumnIndexes().size() - 1;
 
             iters = new LeapfrogTrieIterator[2];
             leapfrogtrie_init(leftIterator, rightIterator);
@@ -99,6 +103,22 @@ public class LFTJOperator extends JoinOperator {
             }
             leftIterator.up();
             rightIterator.up();
+
+            // Align iterators on all levels
+            while (depth <= maxDepth) {
+                iters[0].open();
+                iters[1].open();
+                boolean successfulAlignment = leapfrogtrie_search();
+                if (!successfulAlignment) {
+                    iters[0].up();
+                    iters[1].up();
+                    iters[0].next();
+                    iters[1].next();
+                } else {
+                    depth += 1;
+                }
+            }
+            depth -= 1;
         }
 
         /**
@@ -109,11 +129,29 @@ public class LFTJOperator extends JoinOperator {
             if (this.atEnd) {
                 return null;
             }
-            return leapfrogtrie_search();
+            leapfrogtrie_search();
+            return null;
         }
 
-        private Record leapfrogtrie_search() {
-            return null;
+        // Align the iterators on the current level. Return false if not possible.
+        private boolean leapfrogtrie_search() {
+            LeapfrogTrieIterator iter1 = iters[0];
+            LeapfrogTrieIterator iter2 = iters[1];
+            if (depth == -1 && maxDepth != -1) {
+                iter1.open();
+                iter2.open();
+                depth += 1;
+            }
+            DataBox iter1Key = iter1.key();
+            DataBox iter2Key = iter2.key();
+            if (iter1Key.compareTo(iter2Key) < 0) {
+                return iter1.seek(iter2Key);
+            } else if (iter1Key.compareTo(iter2Key) == 0) {
+                return true;
+            }
+            else {
+                return iter2.seek(iter1Key);
+            }
         }
     }
 
