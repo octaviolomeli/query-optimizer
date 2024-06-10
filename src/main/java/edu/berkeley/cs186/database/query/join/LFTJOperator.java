@@ -292,16 +292,18 @@ public class LFTJOperator extends JoinOperator {
         // Insert the values from a record into the Trie
         public void insert(Record record, int indexInCI) {
             // Last index
-            if (this.isLeftSource && indexInCI == getLeftColumnIndexes().size() - 1) {
+            if (this.isLeftSource && indexInCI == getLeftColumnIndexes().size()) {
                 if (records == null) {
                     records = new ArrayList<>();
                 }
                 this.records.add(record);
-            } else if (!this.isLeftSource && indexInCI == getRightColumnIndexes().size() - 1) {
+                return;
+            } else if (!this.isLeftSource && indexInCI == getRightColumnIndexes().size()) {
                 if (records == null) {
                     records = new ArrayList<>();
                 }
                 this.records.add(record);
+                return;
             }
             DataBox keyToInsert;
             int indexInRecord;
@@ -311,8 +313,10 @@ public class LFTJOperator extends JoinOperator {
                 indexInRecord = getRightColumnIndexes().get(indexInCI);
             }
             keyToInsert = record.getValue(indexInRecord);
-            children.put(keyToInsert, new TrieNode(isLeftSource, keyToInsert));
-            children.get(keyToInsert).parent = this;
+            if (!children.containsKey(keyToInsert)) {
+                children.put(keyToInsert, new TrieNode(isLeftSource, keyToInsert));
+                children.get(keyToInsert).parent = this;
+            }
             children.get(keyToInsert).insert(record, indexInCI + 1);
         }
 
@@ -344,7 +348,7 @@ public class LFTJOperator extends JoinOperator {
 
         // Sort the children of this TrieNode and recurse
         public void sortChildren() {
-            if (sortedChildren.isEmpty()) {
+            if (children.isEmpty()) {
                 return;
             }
             ArrayList<DataBox> childrenSorted = new ArrayList<>(children.keySet());

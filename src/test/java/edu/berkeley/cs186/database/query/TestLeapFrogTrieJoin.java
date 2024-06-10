@@ -33,6 +33,7 @@ public class TestLeapFrogTrieJoin {
     private QueryOperator leftSourceOperator;
     private QueryOperator rightSourceOperator;
     private Map<Long, Page> pinnedPages = new HashMap<>();
+    private ArrayList<String> columnNames = new ArrayList<>();
 
     @Rule
     public TemporaryFolder tempFolder = new TemporaryFolder();
@@ -41,6 +42,9 @@ public class TestLeapFrogTrieJoin {
     public void setup() throws IOException {
         File tempDir = tempFolder.newFolder("leapfrogtrieTest");
         d = new Database(tempDir.getAbsolutePath(), 256);
+        columnNames.add("field1");
+        columnNames.add("field2");
+        columnNames.add("field3");
         d.setWorkMem(5); // B=5
         d.waitAllTransactions();
     }
@@ -95,7 +99,7 @@ public class TestLeapFrogTrieJoin {
             );
 
             JoinOperator joinOperator = new LFTJOperator(
-                    leftSourceOperator, rightSourceOperator, "field1", "field1",
+                    leftSourceOperator, rightSourceOperator, columnNames, columnNames,
                     transaction.getTransactionContext());
 
             Iterator<Record> outputIterator = joinOperator.iterator();
@@ -125,9 +129,8 @@ public class TestLeapFrogTrieJoin {
                     TestUtils.createIncreasingSourceWith3IntFields(20, 10),
                     transaction
             );
-
             JoinOperator joinOperator = new LFTJOperator(
-                    leftSourceOperator, rightSourceOperator, "field1", "field1",
+                    leftSourceOperator, rightSourceOperator, columnNames, columnNames,
                     transaction.getTransactionContext());
 
             Iterator<Record> outputIterator = joinOperator.iterator();
@@ -156,9 +159,8 @@ public class TestLeapFrogTrieJoin {
                     TestUtils.createEmptySourceWith3IntFields(),
                     transaction
             );
-
             JoinOperator joinOperator = new LFTJOperator(
-                    leftSourceOperator, rightSourceOperator, "field1", "field1",
+                    leftSourceOperator, rightSourceOperator, columnNames, columnNames,
                     transaction.getTransactionContext());
 
             Iterator<Record> outputIterator = joinOperator.iterator();
@@ -178,9 +180,8 @@ public class TestLeapFrogTrieJoin {
                     TestUtils.createEmptySourceWith3IntFields(),
                     transaction
             );
-
             JoinOperator joinOperator = new LFTJOperator(
-                    leftSourceOperator, rightSourceOperator, "field1", "field1",
+                    leftSourceOperator, rightSourceOperator, columnNames, columnNames,
                     transaction.getTransactionContext());
 
             Iterator<Record> outputIterator = joinOperator.iterator();
@@ -202,7 +203,7 @@ public class TestLeapFrogTrieJoin {
             );
 
             JoinOperator joinOperator = new LFTJOperator(
-                    leftSourceOperator, rightSourceOperator, "field1", "field1",
+                    leftSourceOperator, rightSourceOperator, columnNames, columnNames,
                     transaction.getTransactionContext());
 
             Iterator<Record> outputIterator = joinOperator.iterator();
@@ -221,7 +222,7 @@ public class TestLeapFrogTrieJoin {
             );
 
             JoinOperator joinOperator = new LFTJOperator(
-                    leftSourceOperator, rightSourceOperator, "field1", "field1",
+                    leftSourceOperator, rightSourceOperator, columnNames, columnNames,
                     transaction.getTransactionContext());
 
             Iterator<Record> outputIterator = joinOperator.iterator();
@@ -238,9 +239,8 @@ public class TestLeapFrogTrieJoin {
                     TestUtils.createDecreasingSourceWith3IntFields(20, 10),
                     transaction
             );
-
             JoinOperator joinOperator = new LFTJOperator(
-                    leftSourceOperator, rightSourceOperator, "field1", "field1",
+                    leftSourceOperator, rightSourceOperator, columnNames, columnNames,
                     transaction.getTransactionContext());
 
             Iterator<Record> outputIterator = joinOperator.iterator();
