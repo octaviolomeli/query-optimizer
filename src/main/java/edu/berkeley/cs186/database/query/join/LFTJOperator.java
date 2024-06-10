@@ -42,6 +42,7 @@ public class LFTJOperator extends JoinOperator {
         private final ArrayList<Record> savedRecordsToReturn;
         private int depth;
         private final int maxDepth;
+        private boolean justJoined;
 
         private LeapfrogTrieJoinIterator() {
             super();
@@ -52,6 +53,7 @@ public class LFTJOperator extends JoinOperator {
             maxDepth = getLeftColumnIndexes().size() - 1;
             iters = new LeapfrogTrieIterator[2];
             leapfrogtrie_init(leftIterator, rightIterator);
+            this.justJoined = false;
         }
 
         /**
@@ -92,6 +94,7 @@ public class LFTJOperator extends JoinOperator {
             // Order `iters` by smallest first key
             leftIterator.open();
             rightIterator.open();
+            depth += 1;
             DataBox leftKey = leftIterator.key();
             DataBox rightKey = rightIterator.key();
             if (leftKey.compareTo(rightKey) < 0) {
@@ -103,8 +106,6 @@ public class LFTJOperator extends JoinOperator {
                 iters[1] = leftIterator;
                 this.atEnd = !rightIterator.seek(leftKey);
             }
-            leftIterator.up();
-            rightIterator.up();
         }
 
         /**
@@ -119,15 +120,19 @@ public class LFTJOperator extends JoinOperator {
             while (depth <= maxDepth && !this.atEnd) {
                 boolean successfulAlignment = false;
                 // Repeat until no more siblings in either iterator
-                while (!successfulAlignment && !iters[0].atEnd() && !iters[1].atEnd()) {
+                while (!successfulAlignment ) {
                     successfulAlignment = leapfrogtrie_search();
+                    if (!successfulAlignment && (iters[0].atEnd() || iters[0].atEnd())) {
+                        break;
+                    }
                 }
-                if (successfulAlignment) {
+                if (successfulAlignment && !justJoined) {
                     // Successful alignment, go to next depth
                     iters[0].open();
                     iters[1].open();
                     depth += 1;
                 } else {
+                    this.justJoined = false;
                     // Could not find alignment for this branch. Move the parent to its sibling
                     while (depth != -1 && (iters[0].atEnd() || iters[1].atEnd())) {
                         iters[0].up();
@@ -151,6 +156,7 @@ public class LFTJOperator extends JoinOperator {
                     savedRecordsToReturn.add(r1.concat(r2));
                 }
             }
+            this.justJoined = true;
             return savedRecordsToReturn.remove(0);
         }
 
@@ -166,9 +172,6 @@ public class LFTJOperator extends JoinOperator {
             }
             boolean aligned = false;
             while (!aligned) {
-                if (iter1.atEnd() || iter2.atEnd()) {
-                    return false;
-                }
                 DataBox iter1Key = iter1.key();
                 DataBox iter2Key = iter2.key();
                 // If iter1key is smaller, try to move it to iter2key's value
@@ -181,6 +184,9 @@ public class LFTJOperator extends JoinOperator {
                 }
                 else {
                     aligned = iter2.seek(iter1Key);
+                }
+                if ((iter1.atEnd() || iter2.atEnd()) && !aligned) {
+                    return false;
                 }
             }
             return true;
@@ -204,6 +210,9 @@ public class LFTJOperator extends JoinOperator {
 
         // Proceed to the first key at the next depth
         public void open() {
+            if (currNode.sortedChildren.isEmpty()) {
+                return;
+            }
             DataBox childKey = currNode.sortedChildren.get(0);
             currNode.setIndexOfChildLastVisited(0);
             currNode = currNode.children.get(childKey);
