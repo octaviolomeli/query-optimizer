@@ -67,8 +67,6 @@ public class LFJOperator extends JoinOperator {
 
     // Iterator to return joined results
     private class LeapfrogJoinIterator implements Iterator<Record> {
-        private final LeapfrogIterator leftIterator;
-        private final LeapfrogIterator rightIterator;
         private Record nextRecord; // The joined record to return
         private boolean atEnd;
         private int p;
@@ -78,14 +76,12 @@ public class LFJOperator extends JoinOperator {
 
         private LeapfrogJoinIterator(LFJOperator lfo) {
             super();
-            leftIterator = new LeapfrogIterator(getLeftSource(), lfo);
-            rightIterator = new LeapfrogIterator(getRightSource(), lfo);
+            LeapfrogIterator leftIterator = new LeapfrogIterator(getLeftSource(), lfo);
+            LeapfrogIterator rightIterator = new LeapfrogIterator(getRightSource(), lfo);
 
             savedRecordsToReturn = new ArrayList<>();
             iters = new LeapfrogIterator[2];
-            iters[0] = leftIterator;
-            iters[1] = rightIterator;
-            leapfrog_init();
+            leapfrog_init(leftIterator, rightIterator);
         }
 
         /**
@@ -97,7 +93,7 @@ public class LFJOperator extends JoinOperator {
             if (this.nextRecord == null && !this.savedRecordsToReturn.isEmpty()){
                 this.nextRecord = savedRecordsToReturn.remove(0);
             } else if (this.nextRecord == null){
-                this.nextRecord = fetchNextRecord();
+                this.nextRecord = leapfrog_next();
             }
             return this.nextRecord != null;
         }
@@ -114,16 +110,8 @@ public class LFJOperator extends JoinOperator {
             return nextRecord;
         }
 
-        /**
-         * Returns the next record that should be yielded from this join,
-         * or null if there are no more records to join.
-         */
-        private Record fetchNextRecord() {
-            return leapfrog_next();
-        }
-
         // Initialize state and find first result
-        public void leapfrog_init() {
+        public void leapfrog_init(LeapfrogIterator leftIterator, LeapfrogIterator rightIterator) {
             if (leftIterator.atEnd() || rightIterator.atEnd()) {
                 this.atEnd = true;
                 return;
@@ -175,7 +163,10 @@ public class LFJOperator extends JoinOperator {
             }
         }
 
-        // Return the next joined record
+        /**
+         * Returns the next record that should be yielded from this join,
+         * or null if there are no more records to join.
+         */
         public Record leapfrog_next() {
             iters[p].next();
             if (iters[p].atEnd()) {

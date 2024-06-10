@@ -34,25 +34,21 @@ public class LFTJOperator extends JoinOperator {
     }
 
     // Iterator to return joined results
-    // NOT UPDATED YET
     private class LeapfrogTrieJoinIterator implements Iterator<Record> {
-        private final LeapfrogTrieIterator leftIterator;
-        private final LeapfrogTrieIterator rightIterator;
         private Record nextRecord; // The joined record to return
         private boolean atEnd;
-        private int p;
         private final LeapfrogTrieIterator[] iters;
-        private int depth;
+        // Stores duplicates to return
+        private final ArrayList<Record> savedRecordsToReturn;
 
         private LeapfrogTrieJoinIterator() {
             super();
-            leftIterator = new LeapfrogTrieIterator(getLeftSource(), true);
-            rightIterator = new LeapfrogTrieIterator(getRightSource(), false);
+            LeapfrogTrieIterator leftIterator = new LeapfrogTrieIterator(getLeftSource(), true);
+            LeapfrogTrieIterator rightIterator = new LeapfrogTrieIterator(getRightSource(), false);
+            savedRecordsToReturn = new ArrayList<>();
 
             iters = new LeapfrogTrieIterator[2];
-            iters[0] = leftIterator;
-            iters[1] = rightIterator;
-            depth = -1;
+            leapfrogtrie_init(leftIterator, rightIterator);
         }
 
         /**
@@ -61,7 +57,11 @@ public class LFTJOperator extends JoinOperator {
          */
         @Override
         public boolean hasNext() {
-            if (this.nextRecord == null) this.nextRecord = fetchNextRecord();
+            if (this.nextRecord == null && !this.savedRecordsToReturn.isEmpty()){
+                this.nextRecord = savedRecordsToReturn.remove(0);
+            } else if (this.nextRecord == null){
+                this.nextRecord = leapfrogtrie_next();
+            }
             return this.nextRecord != null;
         }
 
@@ -77,11 +77,42 @@ public class LFTJOperator extends JoinOperator {
             return nextRecord;
         }
 
+        private void leapfrogtrie_init(LeapfrogTrieIterator leftIterator, LeapfrogTrieIterator rightIterator) {
+            if (leftIterator.currNode.children.isEmpty() || rightIterator.currNode.children.isEmpty()) {
+                this.atEnd = true;
+                return;
+            }
+
+            // Order `iters` by smallest first key
+            leftIterator.open();
+            rightIterator.open();
+            DataBox leftKey = leftIterator.key();
+            DataBox rightKey = rightIterator.key();
+            if (leftKey.compareTo(rightKey) < 0) {
+                iters[0] = leftIterator;
+                iters[1] = rightIterator;
+                this.atEnd = !leftIterator.seek(rightKey);
+            } else {
+                iters[0] = rightIterator;
+                iters[1] = leftIterator;
+                this.atEnd = !rightIterator.seek(leftKey);
+            }
+            leftIterator.up();
+            rightIterator.up();
+        }
+
         /**
          * Returns the next record that should be yielded from this join,
          * or null if there are no more records to join.
          */
-        private Record fetchNextRecord() {
+        private Record leapfrogtrie_next() {
+            if (this.atEnd) {
+                return null;
+            }
+            return leapfrogtrie_search();
+        }
+
+        private Record leapfrogtrie_search() {
             return null;
         }
     }
@@ -128,8 +159,10 @@ public class LFTJOperator extends JoinOperator {
             currNode = currNode.getParent().children.get(keyToVisit);
         }
 
-        // Go to sibling node on the same level that has key ≥ seekKey
-        // Return true if the iterator moved to a new position
+        /*
+            Go to sibling node on the same level that has key ≥ seekKey
+            Return true if the iterator moved to a new position
+        */
         public boolean seek(DataBox seekKey) {
             currNode = currNode.getParent();
             int indexOfSeekKey = Collections.binarySearch(currNode.sortedChildren, seekKey, new DataBoxComparator());
@@ -151,6 +184,10 @@ public class LFTJOperator extends JoinOperator {
             int parentChildIndex = currNode.getParent().getIndexOfChildLastVisited();
             return parentChildIndex == currNode.getParent().children.size() - 1;
         }
+
+        public DataBox key() {
+            return currNode.value;
+        }
     }
 
     public class TrieNode {
@@ -158,7 +195,7 @@ public class LFTJOperator extends JoinOperator {
         public ArrayList<DataBox> sortedChildren;
         private int indexOfChildLastVisited;
         private TrieNode parent;
-        private Record record;
+        private ArrayList<Record> records;
         private final DataBox value;
         private final boolean isLeftSource;
 
@@ -167,7 +204,7 @@ public class LFTJOperator extends JoinOperator {
             this.sortedChildren = new ArrayList<>();
             this.indexOfChildLastVisited = -1;
             this.parent = null;
-            this.record = null;
+            this.records = null;
             this.value = null;
             this.isLeftSource = isLeftSource;
         }
@@ -177,7 +214,7 @@ public class LFTJOperator extends JoinOperator {
             this.sortedChildren = new ArrayList<>();
             this.indexOfChildLastVisited = -1;
             this.parent = null;
-            this.record = null;
+            this.records = null;
             this.value = value;
             this.isLeftSource = isLeftSource;
         }
@@ -186,9 +223,15 @@ public class LFTJOperator extends JoinOperator {
         public void insert(Record record, int indexInCI) {
             // Last index
             if (this.isLeftSource && indexInCI == getLeftColumnIndexes().size() - 1) {
-                this.record = record;
+                if (records == null) {
+                    records = new ArrayList<>();
+                }
+                this.records.add(record);
             } else if (!this.isLeftSource && indexInCI == getRightColumnIndexes().size() - 1) {
-                this.record = record;
+                if (records == null) {
+                    records = new ArrayList<>();
+                }
+                this.records.add(record);
             }
             DataBox keyToInsert;
             int indexInRecord;
@@ -204,7 +247,7 @@ public class LFTJOperator extends JoinOperator {
         }
 
         public boolean isEnd() {
-            return record != null;
+            return records != null;
         }
 
         public TrieNode getParent() {
@@ -222,11 +265,11 @@ public class LFTJOperator extends JoinOperator {
             this.indexOfChildLastVisited = newIndex;
         }
 
-        public Record getRecord() {
+        public ArrayList<Record> getRecords() {
             if (isEnd()) {
                 throw new NoSuchElementException();
             }
-            return this.record;
+            return this.records;
         }
 
         // Sort the children of this TrieNode and recurse
