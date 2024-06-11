@@ -5,7 +5,7 @@ The improvements I have added are:
 
 - Implemented LIFO and MRU buffer replacement policies
 - Implemented INLJ, LeapfrogJoin
-- Implementing LeapfrogTriejoin
+- Implemented LeapfrogTriejoin which allows joins on multiple columns
 - Duplicate record support in LeapfrogJoin and LeapfrogTriejoin
 
 I plan on adding:
