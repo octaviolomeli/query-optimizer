@@ -252,9 +252,6 @@ public class LFTJOperator extends JoinOperator {
             Return true if the iterator moved to a new position
         */
         public boolean seek(DataBox seekKey) {
-            if (atEnd()) {
-                return false;
-            }
             TrieNode parentNode = currNode.getParent();
             int indexOfSeekKey = Collections.binarySearch(parentNode.sortedChildren, seekKey, new DataBoxComparator());
             if (indexOfSeekKey < 0) {return false;}
