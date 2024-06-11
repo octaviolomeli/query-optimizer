@@ -115,8 +115,108 @@ public class TestUtils {
                 .add("field2", Type.intType())
                 .add("field3", Type.intType());
         List<Record> recordList = new ArrayList<Record>();
-        for (int i = numRecords + start; i > start; i--) {
+        for (int i = numRecords + start - 1; i >= start; i--) {
             recordList.add(new Record(i, i, i));
+        }
+        return new TestSourceOperator(recordList, schema);
+    }
+
+    // LEAPFROG TRIEJOIN SOURCES
+    public static TestSourceOperator createExampleSource1() {
+        Schema schema = new Schema()
+                .add("field1", Type.intType())
+                .add("field2", Type.stringType(1))
+                .add("field3", Type.intType())
+                .add("field4", Type.stringType(2));
+        List<Record> recordList = new ArrayList<Record>();
+        recordList.add(new Record(1, "a", 1, "aa"));
+        recordList.add(new Record(1, "c", 1, "bb"));
+        recordList.add(new Record(1, "b", 2, "bb"));
+        recordList.add(new Record(2, "a", 1, "aa"));
+        recordList.add(new Record(2, "a", 2, "ab"));
+        recordList.add(new Record(3, "c", 1, "aa"));
+        return new TestSourceOperator(recordList, schema);
+    }
+
+    public static ArrayList<Record> getExampleSource1Records() {
+        ArrayList<Record> recordList = new ArrayList<Record>();
+        recordList.add(new Record(1, "a", 1, "aa"));
+        recordList.add(new Record(1, "b", 2, "bb"));
+        recordList.add(new Record(1, "c", 1, "bb"));
+        recordList.add(new Record(2, "a", 1, "aa"));
+        recordList.add(new Record(2, "a", 2, "ab"));
+        recordList.add(new Record(3, "c", 1, "aa"));
+        return recordList;
+    }
+
+    public static TestSourceOperator createExampleSource2() {
+        Schema schema = new Schema()
+                .add("field1", Type.intType())
+                .add("field2", Type.stringType(1))
+                .add("field3", Type.intType())
+                .add("field4", Type.stringType(2));
+        List<Record> recordList = new ArrayList<Record>();
+        for (int i = 0; i < 10; i++) {
+            recordList.add(new Record(1, "a", 1, "aa"));
+        }
+        return new TestSourceOperator(recordList, schema);
+    }
+
+    public static TestSourceOperator createExampleSource3(boolean leftSource) {
+        Schema schema = new Schema()
+                .add("field1", Type.intType())
+                .add("field2", Type.intType())
+                .add("field3", Type.intType())
+                .add("field4", Type.stringType(1));
+        List<Record> recordList = new ArrayList<Record>();
+        if (leftSource) {
+            recordList.add(new Record(5, 2, 1, "a"));
+            recordList.add(new Record(2, 2, 1, "a"));
+            recordList.add(new Record(1, 2, 1, "a"));
+            recordList.add(new Record(1, 1, 3, "a"));
+            recordList.add(new Record(1, 1, 2, "a"));
+            recordList.add(new Record(1, 1, 1, "c"));
+        } else {
+            recordList.add(new Record(1, 2, 4, "a"));
+            recordList.add(new Record(2, 2, 1, "b"));
+            recordList.add(new Record(1, 3, 1, "a"));
+            recordList.add(new Record(1, 1, 3, "a"));
+            recordList.add(new Record(1, 1, 1, "b"));
+            recordList.add(new Record(1, 1, 1, "a"));
+        }
+        return new TestSourceOperator(recordList, schema);
+    }
+
+    public static ArrayList<Record> getExampleSource3Records() {
+        ArrayList<Record> result = new ArrayList<>();
+        result.add((new Record(1, 1, 1, "b")).concat(new Record(1, 1, 1, "c")));
+        result.add((new Record(1, 1, 1, "a")).concat(new Record(1, 1, 1, "c")));
+        result.add((new Record(1, 1, 3, "a")).concat(new Record(1, 1, 3, "a")));
+        result.add((new Record(2, 2, 1, "b")).concat(new Record(2, 2, 1, "a")));
+        return result;
+    }
+
+    public static TestSourceOperator createExampleSource4(boolean leftSource) {
+        Schema schema = new Schema()
+                .add("field1", Type.intType())
+                .add("field2", Type.intType())
+                .add("field3", Type.intType())
+                .add("field4", Type.stringType(1));
+        List<Record> recordList = new ArrayList<Record>();
+        if (leftSource) {
+            recordList.add(new Record(5, 2, 1, "a"));
+            recordList.add(new Record(2, 2, 1, "a"));
+            recordList.add(new Record(1, 2, 1, "a"));
+            recordList.add(new Record(1, 1, 3, "a"));
+            recordList.add(new Record(1, 1, 2, "a"));
+            recordList.add(new Record(1, 1, 1, "c"));
+        } else {
+            recordList.add(new Record(7, 1, 2, "a"));
+            recordList.add(new Record(7, 1, 3, "b"));
+            recordList.add(new Record(7, 2, 1, "a"));
+            recordList.add(new Record(7, 3, 3, "a"));
+            recordList.add(new Record(5, 4, 1, "b"));
+            recordList.add(new Record(5, 4, 2, "a"));
         }
         return new TestSourceOperator(recordList, schema);
     }

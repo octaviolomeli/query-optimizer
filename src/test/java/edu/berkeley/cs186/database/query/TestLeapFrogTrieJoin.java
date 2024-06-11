@@ -5,12 +5,8 @@ import edu.berkeley.cs186.database.TestUtils;
 import edu.berkeley.cs186.database.TimeoutScaling;
 import edu.berkeley.cs186.database.Transaction;
 import edu.berkeley.cs186.database.concurrency.DummyLockContext;
-import edu.berkeley.cs186.database.databox.DataBox;
-import edu.berkeley.cs186.database.databox.IntDataBox;
-import edu.berkeley.cs186.database.databox.StringDataBox;
 import edu.berkeley.cs186.database.io.DiskSpaceManager;
 import edu.berkeley.cs186.database.memory.Page;
-import edu.berkeley.cs186.database.query.join.LFTJOperator;
 import edu.berkeley.cs186.database.query.join.LFTJOperator;
 import edu.berkeley.cs186.database.table.Record;
 import org.junit.After;
@@ -89,12 +85,12 @@ public class TestLeapFrogTrieJoin {
     }
 
     @Test
-    public void testAllMatchesLeapFrogTrieJoin() {
+    public void testAllMatchesUniqueRecordsLeapFrogTrieJoin() {
         d.setWorkMem(5); // B=5
         try(Transaction transaction = d.beginTransaction()) {
             setSourceOperators(
-                    TestUtils.createIncreasingSourceWith3IntFields(25),
-                    TestUtils.createIncreasingSourceWith3IntFields(25),
+                    TestUtils.createExampleSource1(),
+                    TestUtils.createExampleSource1(),
                     transaction
             );
 
@@ -106,17 +102,48 @@ public class TestLeapFrogTrieJoin {
 
             int numRecords = 0;
 
-            Record expectedRecord = new Record(0, 0, 0).concat(new Record(0, 0, 0));
+            List<Record> expectedRecords = TestUtils.getExampleSource1Records();
+            Record expectedRecord;
 
-            while (numRecords < 25 && outputIterator.hasNext()) {
+            while (numRecords < 6 && outputIterator.hasNext()) {
+                expectedRecord = expectedRecords.get(numRecords).concat(expectedRecords.get(numRecords));
                 assertEquals("mismatch at record " + numRecords, expectedRecord, outputIterator.next());
                 numRecords++;
-                expectedRecord = new Record(numRecords, numRecords, numRecords)
-                        .concat(new Record(numRecords, numRecords, numRecords));
+
             }
 
             assertFalse("too many records", outputIterator.hasNext());
-            assertEquals("too few records", 25, numRecords);
+            assertEquals("too few records", 6, numRecords);
+        }
+    }
+
+    @Test
+    public void testAllMatchesSameRecordsLeapFrogTrieJoin() {
+        d.setWorkMem(5); // B=5
+        try(Transaction transaction = d.beginTransaction()) {
+            setSourceOperators(
+                    TestUtils.createExampleSource2(),
+                    TestUtils.createExampleSource2(),
+                    transaction
+            );
+
+            JoinOperator joinOperator = new LFTJOperator(
+                    leftSourceOperator, rightSourceOperator, columnNames, columnNames,
+                    transaction.getTransactionContext());
+
+            Iterator<Record> outputIterator = joinOperator.iterator();
+
+            int numRecords = 0;
+
+            Record expectedRecord = new Record(1, "a", 1, "aa", 1, "a", 1, "aa");
+
+            while (numRecords < 100 && outputIterator.hasNext()) {
+                assertEquals("mismatch at record " + numRecords, expectedRecord, outputIterator.next());
+                numRecords++;
+            }
+
+            assertFalse("too many records", outputIterator.hasNext());
+            assertEquals("too few records", 100, numRecords);
         }
     }
 
@@ -147,6 +174,35 @@ public class TestLeapFrogTrieJoin {
 
             assertFalse("too many records", outputIterator.hasNext());
             assertEquals("too few records", 10, numRecords);
+        }
+    }
+
+    @Test
+    public void testSomeMatchesDifferentColumnValuesLeapFrogTrieJoin() {
+        d.setWorkMem(5); // B=5
+        try(Transaction transaction = d.beginTransaction()) {
+            setSourceOperators(
+                    TestUtils.createExampleSource3(true),
+                    TestUtils.createExampleSource3(false),
+                    transaction
+            );
+            JoinOperator joinOperator = new LFTJOperator(
+                    leftSourceOperator, rightSourceOperator, columnNames, columnNames,
+                    transaction.getTransactionContext());
+
+            Iterator<Record> outputIterator = joinOperator.iterator();
+            int numRecords = 0;
+            ArrayList<Record> expectedRecords = TestUtils.getExampleSource3Records();
+            Record expectedRecord;
+
+            while (numRecords < expectedRecords.size() && outputIterator.hasNext()) {
+                expectedRecord = expectedRecords.get(numRecords);
+                assertEquals("mismatch at record " + numRecords, expectedRecord, outputIterator.next());
+                numRecords++;
+            }
+
+            assertFalse("too many records", outputIterator.hasNext());
+            assertEquals("too few records", expectedRecords.size(), numRecords);
         }
     }
 
@@ -212,12 +268,31 @@ public class TestLeapFrogTrieJoin {
     }
 
     @Test
-    public void testNoMatchesLeapFrogTrieJoin() {
+    public void testNoMatchesSameColumnsLeapFrogTrieJoin() {
         d.setWorkMem(5); // B=5
         try(Transaction transaction = d.beginTransaction()) {
             setSourceOperators(
                     TestUtils.createIncreasingSourceWith3IntFields(10, 0),
                     TestUtils.createIncreasingSourceWith3IntFields(10, 25),
+                    transaction
+            );
+
+            JoinOperator joinOperator = new LFTJOperator(
+                    leftSourceOperator, rightSourceOperator, columnNames, columnNames,
+                    transaction.getTransactionContext());
+
+            Iterator<Record> outputIterator = joinOperator.iterator();
+            assertFalse("too many records", outputIterator.hasNext());
+        }
+    }
+
+    @Test
+    public void testNoMatchesDistinctColumnsLeapFrogTrieJoin() {
+        d.setWorkMem(5); // B=5
+        try(Transaction transaction = d.beginTransaction()) {
+            setSourceOperators(
+                    TestUtils.createExampleSource4(true),
+                    TestUtils.createExampleSource4(false),
                     transaction
             );
 
@@ -246,13 +321,13 @@ public class TestLeapFrogTrieJoin {
             Iterator<Record> outputIterator = joinOperator.iterator();
             int numRecords = 0;
 
-            Record expectedRecord = new Record(20, 20, 20).concat(new Record(20, 20, 20));
+            Record expectedRecord = new Record(10, 10, 10).concat(new Record(10, 10, 10));
 
             while (numRecords < 10 && outputIterator.hasNext()) {
                 assertEquals("mismatch at record " + numRecords, expectedRecord, outputIterator.next());
                 numRecords++;
-                expectedRecord = new Record(20 - numRecords, 20 - numRecords, 20 - numRecords)
-                        .concat(new Record(20 - numRecords, 20 - numRecords, 20 - numRecords));
+                expectedRecord = new Record(numRecords + 10, numRecords + 10, numRecords + 10)
+                        .concat(new Record(numRecords + 10, numRecords + 10, numRecords + 10));
             }
 
             assertFalse("too many records", outputIterator.hasNext());
