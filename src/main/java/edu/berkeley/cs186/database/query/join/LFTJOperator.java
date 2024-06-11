@@ -82,8 +82,10 @@ public class LFTJOperator extends JoinOperator {
             return nextRecord;
         }
 
-        /*
-
+        /**
+            Setup iterators based on ordering of first key in each iterator.
+            @param leftIterator A leapfrogtrie iterator on the left source
+            @param rightIterator A leapfrogtrie iterator on the right source
         */
         private void leapfrogtrie_init(LeapfrogTrieIterator leftIterator, LeapfrogTrieIterator rightIterator) {
             if (leftIterator.currNode.children.isEmpty() || rightIterator.currNode.children.isEmpty()) {
@@ -116,16 +118,18 @@ public class LFTJOperator extends JoinOperator {
             if (this.atEnd) {
                 return null;
             }
-            // Align iterators on all levels
+            // Align iterators on all levels or when no more records
             while (depth <= maxDepth && !this.atEnd) {
                 boolean successfulAlignment = false;
-                // Repeat until no more siblings in either iterator
+                // Repeat seek until this level is aligned
                 while (!successfulAlignment ) {
                     successfulAlignment = leapfrogtrie_search();
+                    // Stop trying to align if an iterator is at the end
                     if (!successfulAlignment && (iters[0].atEnd() || iters[0].atEnd())) {
                         break;
                     }
                 }
+                // If we just joined, don't repeat a record
                 if (successfulAlignment && !justJoined) {
                     // Successful alignment, go to next depth
                     iters[0].open();
@@ -133,12 +137,13 @@ public class LFTJOperator extends JoinOperator {
                     depth += 1;
                 } else {
                     this.justJoined = false;
-                    // Could not find alignment for this branch. Move the parent to its sibling
+                    // Could not find alignment for this branch. Move up the trie until there's a sibling to visit.
                     while (depth != -1 && (iters[0].atEnd() || iters[1].atEnd())) {
                         iters[0].up();
                         iters[1].up();
                         depth -= 1;
                     }
+                    // At end of the iterator
                     if (depth == -1) {
                         this.atEnd = true;
                     } else {
@@ -147,10 +152,12 @@ public class LFTJOperator extends JoinOperator {
                     }
                 }
             }
+            // No more records
             if (this.atEnd) {
                 return null;
             }
-            this.depth -= 1;
+            this.depth -= 1; // While loop adds extra depth
+            // Concat all records that share these column values and store additional records we can't return right away
             for (Record r1 : iters[0].currNode.getRecords()) {
                 for (Record r2 : iters[1].currNode.getRecords()) {
                     savedRecordsToReturn.add(r1.concat(r2));
@@ -185,6 +192,7 @@ public class LFTJOperator extends JoinOperator {
                 else {
                     aligned = iter2.seek(iter1Key);
                 }
+                // Could not align and iterators are at the end.
                 if ((iter1.atEnd() || iter2.atEnd()) && !aligned) {
                     return false;
                 }
@@ -231,11 +239,12 @@ public class LFTJOperator extends JoinOperator {
             if (atEnd()) {
                 throw new NoSuchElementException();
             }
-            int parentChildIndex = currNode.getParent().getIndexOfChildLastVisited();
+            TrieNode parentNode = currNode.getParent();
+            int parentChildIndex = parentNode.getIndexOfChildLastVisited();
             int nextChild = parentChildIndex + 1;
-            currNode.getParent().setIndexOfChildLastVisited(nextChild);
-            DataBox keyToVisit = currNode.getParent().sortedChildren.get(nextChild);
-            currNode = currNode.getParent().children.get(keyToVisit);
+            parentNode.setIndexOfChildLastVisited(nextChild);
+            DataBox keyToVisit = parentNode.sortedChildren.get(nextChild);
+            currNode = parentNode.children.get(keyToVisit);
         }
 
         /*
@@ -243,12 +252,15 @@ public class LFTJOperator extends JoinOperator {
             Return true if the iterator moved to a new position
         */
         public boolean seek(DataBox seekKey) {
-            currNode = currNode.getParent();
-            int indexOfSeekKey = Collections.binarySearch(currNode.sortedChildren, seekKey, new DataBoxComparator());
-            if (indexOfSeekKey < 0) {
+            if (atEnd()) {
                 return false;
             }
-            currNode = currNode.children.get(currNode.sortedChildren.get(indexOfSeekKey));
+            TrieNode parentNode = currNode.getParent();
+            int indexOfSeekKey = Collections.binarySearch(parentNode.sortedChildren, seekKey, new DataBoxComparator());
+            if (indexOfSeekKey < 0) {return false;}
+            parentNode.setIndexOfChildLastVisited(indexOfSeekKey);
+            DataBox keyToVisit = parentNode.sortedChildren.get(indexOfSeekKey);
+            currNode = parentNode.children.get(keyToVisit);
             return true;
         }
 
