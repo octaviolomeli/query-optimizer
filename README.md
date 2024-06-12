@@ -7,8 +7,6 @@ The improvements I have added are:
 - Implemented INLJ, LeapfrogJoin
 - Implemented LeapfrogTriejoin which allows joins on multiple columns
 - Duplicate record support in LeapfrogJoin and LeapfrogTriejoin (original paper didn't address it)
-
-I plan on adding:
 - Duplicate key support in the B+ Tree
 
 Inspiration for LFTJ and LFJ: https://arxiv.org/abs/1210.0481
