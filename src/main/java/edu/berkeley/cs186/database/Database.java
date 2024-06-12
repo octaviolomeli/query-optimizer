@@ -741,7 +741,7 @@ public class Database implements AutoCloseable {
         public boolean contains(String tableName, String columnName, DataBox key) {
             tableName = aliases.getOrDefault(tableName, tableName);
             BPlusTree tree = indexFromMetadata(getColumnIndexMetadata(tableName, columnName).getSecond());
-            return tree.get(key).isPresent();
+            return !tree.get(key).isEmpty();
         }
 
         @Override

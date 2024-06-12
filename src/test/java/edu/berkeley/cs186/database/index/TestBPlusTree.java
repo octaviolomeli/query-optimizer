@@ -130,9 +130,10 @@ public class TestBPlusTree {
         float fillFactor = 0.75f;
         assertEquals("()", tree.toSexp());
 
-        List<Pair<DataBox, RecordId>> data = new ArrayList<>();
+        List<Pair<Pair<DataBox, RecordId>, RecordId>> data = new ArrayList<>();
         for (int i = 1; i <= 11; ++i) {
-            data.add(new Pair<>(new IntDataBox(i), new RecordId(i, (short) i)));
+            RecordId tempRID = new RecordId(i, (short) i);
+            data.add(new Pair<>(new Pair<>(new IntDataBox(i), tempRID), tempRID));
         }
 
         tree.bulkLoad(data.iterator(), fillFactor);
@@ -442,7 +443,9 @@ public class TestBPlusTree {
 
                 // Test get.
                 for (int i = 0; i < keys.size(); ++i) {
-                    assertEquals(Optional.of(rids.get(i)), tree.get(keys.get(i)));
+                    ArrayList<RecordId> temp = new ArrayList<>();
+                    temp.add(rids.get(i));
+                    assertEquals(temp, tree.get(keys.get(i)));
                 }
 
                 // Test scanAll.
@@ -464,7 +467,8 @@ public class TestBPlusTree {
                 Collections.shuffle(rids, new Random(42));
                 for (DataBox key : keys) {
                     fromDisk.remove(key);
-                    assertEquals(Optional.empty(), fromDisk.get(key));
+                    ArrayList<RecordId> temp = new ArrayList<>();
+                    assertEquals(temp, fromDisk.get(key));
                 }
             }
         }

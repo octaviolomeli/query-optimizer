@@ -75,7 +75,7 @@ public class TestLeafNode {
     }
 
     private LeafNode getEmptyLeaf(Optional<Long> rightSibling) {
-        List<DataBox> keys = new ArrayList<>();
+        List<Pair<DataBox, RecordId>> keys = new ArrayList<>();
         List<RecordId> rids = new ArrayList<>();
         return new LeafNode(metadata, bufferManager, keys, rids, rightSibling, treeContext);
     }
@@ -109,17 +109,17 @@ public class TestLeafNode {
         setBPlusTreeMetadata(Type.intType(), d);
         LeafNode leaf = getEmptyLeaf(Optional.empty());
 
-        List<Pair<DataBox, RecordId>> data = new ArrayList<>();
+        List<Pair<Pair<DataBox, RecordId>, RecordId>> data = new ArrayList<>();
         for (int i = 0; i < (int) Math.ceil(2 * d * 0.6); ++i) {
             DataBox key = new IntDataBox(i);
             RecordId rid = new RecordId(i, (short) i);
-            data.add(i, new Pair<>(key, rid));
+            data.add(i, new Pair<>(new Pair<>(key, rid), rid));
         }
 
         assertFalse(leaf.bulkLoad(data.iterator(), fillFactor).isPresent());
 
         Iterator<RecordId> iter = leaf.scanAll();
-        Iterator<Pair<DataBox, RecordId>> expected = data.iterator();
+        Iterator<Pair<Pair<DataBox, RecordId>, RecordId>> expected = data.iterator();
         while (iter.hasNext() && expected.hasNext()) {
             assertEquals(expected.next().getSecond(), iter.next());
         }
@@ -146,7 +146,9 @@ public class TestLeafNode {
                 // present
                 key = new IntDataBox(j);
                 rid = new RecordId(j, (short) j);
-                assertEquals(Optional.of(rid), leaf.getKey(key));
+                ArrayList<RecordId> temp = new ArrayList<>();
+                temp.add(rid);
+                assertEquals(temp, leaf.getKey(key));
             }
         }
     }
@@ -172,7 +174,9 @@ public class TestLeafNode {
         for (int i = 0; i < 2 * d; ++i) {
             IntDataBox key = new IntDataBox(i);
             RecordId rid = new RecordId(i, (short) i);
-            assertEquals(Optional.of(rid), fromDisk.getKey(key));
+            ArrayList<RecordId> temp = new ArrayList<>();
+            temp.add(rid);
+            assertEquals(temp, fromDisk.getKey(key));
         }
     }
 
@@ -206,15 +210,18 @@ public class TestLeafNode {
         for (int i = 0; i < 2 * d; ++i) {
             IntDataBox key = new IntDataBox(i);
             RecordId rid = new RecordId(i, (short) i);
+            ArrayList<RecordId> temp = new ArrayList<>();
+            temp.add(rid);
             leaf.put(key, rid);
-            assertEquals(Optional.of(rid), leaf.getKey(key));
+            assertEquals(temp, leaf.getKey(key));
         }
 
         // Remove entries.
         for (int i = 0; i < 2 * d; ++i) {
             IntDataBox key = new IntDataBox(i);
             leaf.remove(key);
-            assertEquals(Optional.empty(), leaf.getKey(key));
+            ArrayList<RecordId> temp = new ArrayList<>();
+            assertEquals(temp, leaf.getKey(key));
         }
     }
 
@@ -310,7 +317,7 @@ public class TestLeafNode {
         int d = 5;
         setBPlusTreeMetadata(Type.intType(), d);
 
-        List<DataBox> keys = new ArrayList<>();
+        List<Pair<DataBox, RecordId>> keys = new ArrayList<>();
         List<RecordId> rids = new ArrayList<>();
 
         LeafNode leaf = new LeafNode(metadata, bufferManager, keys, rids, Optional.of(42L), treeContext);
@@ -320,8 +327,9 @@ public class TestLeafNode {
         assertEquals(leaf, LeafNode.fromBytes(metadata, bufferManager, treeContext, pageNum));
 
         for (int i = 0; i < 10; i++) {
-            keys.add(new IntDataBox(i));
-            rids.add(new RecordId(i, (short) i));
+            RecordId tempRID = new RecordId(i, (short) i);
+            keys.add(new Pair<>(new IntDataBox(i), tempRID));
+            rids.add(tempRID);
 
             leaf = new LeafNode(metadata, bufferManager, keys, rids, Optional.of(42L), treeContext);
 
