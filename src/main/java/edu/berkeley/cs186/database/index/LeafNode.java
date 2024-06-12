@@ -174,7 +174,7 @@ class LeafNode extends BPlusNode {
             throw new BPlusTreeException("Attempted to insert an already existing key + rid.");
         }
 
-        index = InnerNode.numLessThanEqualLeaf(key, keys); // index to insert
+        index = InnerNode.numLessThanLeaf(key, keys); // index to insert
         keys.add(index, new Pair<>(key, rid));
         rids.add(index, rid);
 
@@ -247,8 +247,8 @@ class LeafNode extends BPlusNode {
         boolean removedAnElement = false;
         for (int i = 0; i < keys.size(); i++) {
             if (keys.get(i).getFirst().compareTo(key) == 0) {
-                keys.remove(keys.get(i));
                 rids.remove(keys.get(i).getSecond());
+                keys.remove(keys.get(i));
                 removedAnElement = true;
             }
         }
@@ -375,7 +375,7 @@ class LeafNode extends BPlusNode {
     public String toSexp() {
         List<String> ss = new ArrayList<>();
         for (int i = 0; i < keys.size(); ++i) {
-            String key = keys.get(i).toString();
+            String key = keys.get(i).getFirst().toString();
             String rid = rids.get(i).toSexp();
             ss.add(String.format("(%s %s)", key, rid));
         }
@@ -392,7 +392,7 @@ class LeafNode extends BPlusNode {
     public String toDot() {
         List<String> ss = new ArrayList<>();
         for (int i = 0; i < keys.size(); ++i) {
-            ss.add(String.format("%s: %s", keys.get(i), rids.get(i).toSexp()));
+            ss.add(String.format("%s: %s", keys.get(i).getFirst(), rids.get(i).toSexp()));
         }
         long pageNum = getPage().getPageNum();
         String s = String.join("|", ss);
