@@ -182,7 +182,7 @@ public class TestLeafNode {
 
     @Test(expected = BPlusTreeException.class)
     @Category(PublicTests.class)
-    public void testDuplicatePut() {
+    public void testDuplicateRecordPut() {
         // Tests that a BPlusTreeException is thrown on duplicate put
 
         setBPlusTreeMetadata(Type.intType(), 4);
@@ -193,6 +193,20 @@ public class TestLeafNode {
 
         // The duplicate insert should raise an exception.
         leaf.put(new IntDataBox(0), new RecordId(0, (short) 0));
+    }
+
+    @Test
+    public void testDuplicateKeyPut() {
+        // Tests that a BPlusTreeException is thrown on duplicate put
+
+        setBPlusTreeMetadata(Type.intType(), 4);
+        LeafNode leaf = getEmptyLeaf(Optional.empty());
+
+        // The initial insert is fine.
+        leaf.put(new IntDataBox(0), new RecordId(0, (short) 0));
+
+        // The duplicate insert should NOT raise an exception.
+        leaf.put(new IntDataBox(0), new RecordId(0, (short) 1));
     }
 
     @Test
@@ -207,7 +221,7 @@ public class TestLeafNode {
         LeafNode leaf = getEmptyLeaf(Optional.empty());
 
         // Insert entries.
-        for (int i = 0; i < 2 * d; ++i) {
+        for (int i = 0; i < 2 * d - 1; ++i) {
             IntDataBox key = new IntDataBox(i);
             RecordId rid = new RecordId(i, (short) i);
             ArrayList<RecordId> temp = new ArrayList<>();
@@ -216,13 +230,25 @@ public class TestLeafNode {
             assertEquals(temp, leaf.getKey(key));
         }
 
+        IntDataBox key = new IntDataBox(2 * d - 2);
+        RecordId rid = new RecordId(2 * d - 1, (short) (2 * d - 1));
+        ArrayList<RecordId> temp = new ArrayList<>();
+        temp.add(rid);
+        temp.add(new RecordId(2 * d - 2, (short) (2 * d - 2)));
+        leaf.put(key, rid);
+        assertEquals(temp, leaf.getKey(key));
+
         // Remove entries.
-        for (int i = 0; i < 2 * d; ++i) {
-            IntDataBox key = new IntDataBox(i);
+        for (int i = 0; i < 2 * d - 1; ++i) {
+            key = new IntDataBox(i);
             leaf.remove(key);
-            ArrayList<RecordId> temp = new ArrayList<>();
+            temp = new ArrayList<>();
             assertEquals(temp, leaf.getKey(key));
         }
+        key = new IntDataBox(2 * d - 2);
+        leaf.remove(key);
+        temp = new ArrayList<>();
+        assertEquals(temp, leaf.getKey(key));
     }
 
     @Test

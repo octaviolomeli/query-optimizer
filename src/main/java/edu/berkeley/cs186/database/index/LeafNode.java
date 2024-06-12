@@ -244,13 +244,18 @@ class LeafNode extends BPlusNode {
     @Override
     public void remove(DataBox key) {
         // TODO(proj2): implement
+        ArrayList<Pair<DataBox, RecordId>> toDeleteElements = new ArrayList<>();
         boolean removedAnElement = false;
-        for (int i = 0; i < keys.size(); i++) {
-            if (keys.get(i).getFirst().compareTo(key) == 0) {
-                rids.remove(keys.get(i).getSecond());
-                keys.remove(keys.get(i));
+        for (Pair<DataBox, RecordId> dataBoxRecordIdPair : keys) {
+            if (dataBoxRecordIdPair.getFirst().compareTo(key) == 0) {
+                toDeleteElements.add(dataBoxRecordIdPair);
                 removedAnElement = true;
             }
+        }
+
+        for (Pair<DataBox, RecordId> element : toDeleteElements) {
+            keys.remove(element);
+            rids.remove(element.getSecond());
         }
         if (removedAnElement) {
             sync();
