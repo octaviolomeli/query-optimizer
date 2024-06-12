@@ -160,7 +160,7 @@ class LeafNode extends BPlusNode {
 
     // See BPlusNode.put.
     @Override
-    public Optional<Pair<Pair<DataBox,RecordId >, Long>> put(DataBox key, RecordId rid) {
+    public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
         // TODO(proj2): implement
         int index = -1;
         for (int i = 0; i < keys.size(); i++) {
@@ -200,12 +200,12 @@ class LeafNode extends BPlusNode {
         Long newSibling_page_num = newSibling.getPage().getPageNum();
         this.rightSibling = Optional.of(newSibling_page_num);
         sync();
-        return Optional.of(new Pair<>(rightKeys.get(0), newSibling_page_num));
+        return Optional.of(new Pair<>(rightKeys.get(0).getFirst(), newSibling_page_num));
     }
 
     // See BPlusNode.bulkLoad.
     @Override
-    public Optional<Pair<Pair<DataBox, RecordId>, Long>> bulkLoad(Iterator<Pair<Pair<DataBox, RecordId>, RecordId>> data,
+    public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<Pair<DataBox, RecordId>, RecordId>> data,
                                                   float fillFactor) {
         // TODO(proj2): implement
 
@@ -225,7 +225,7 @@ class LeafNode extends BPlusNode {
                 Long newSibling_page_num = newSibling.getPage().getPageNum();
                 this.rightSibling = Optional.of(newSibling_page_num);
                 sync();
-                return Optional.of(new Pair<>(rightKeys.get(0), newSibling_page_num));
+                return Optional.of(new Pair<>(rightKeys.get(0).getFirst(), newSibling_page_num));
             } else {
                 // keep adding to leaf node
 

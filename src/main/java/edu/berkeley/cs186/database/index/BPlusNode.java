@@ -159,7 +159,7 @@ abstract class BPlusNode {
      * a fill factor outside of that range will result in undefined behavior
      * (you're free to handle those cases however you like).
      */
-    public abstract Optional<Pair<Pair<DataBox, RecordId>, Long>> bulkLoad(Iterator<Pair<Pair<DataBox, RecordId>, RecordId>> data,
+    public abstract Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<Pair<DataBox, RecordId>, RecordId>> data,
                                                            float fillFactor);
 
     /**

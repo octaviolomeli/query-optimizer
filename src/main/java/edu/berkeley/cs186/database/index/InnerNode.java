@@ -135,7 +135,7 @@ class InnerNode extends BPlusNode {
 
     // See BPlusNode.bulkLoad.
     @Override
-    public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<DataBox, RecordId>> data,
+    public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<Pair<DataBox, RecordId>, RecordId>> data,
                                                   float fillFactor) {
         // TODO(proj2): implement
 
