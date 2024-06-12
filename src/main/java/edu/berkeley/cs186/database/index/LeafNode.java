@@ -98,7 +98,7 @@ class LeafNode extends BPlusNode {
     //
     // Make sure your code (or your tests) doesn't use stale in-memory cached
     // values of keys and rids.
-    private List<DataBox> keys;
+    private List<Pair<DataBox, RecordId>> keys;
     private List<RecordId> rids;
 
     // If this leaf is the rightmost leaf, then rightSibling is Optional.empty().
@@ -112,7 +112,7 @@ class LeafNode extends BPlusNode {
      * page from the provided BufferManager `bufferManager` and persist the node
      * to that page.
      */
-    LeafNode(BPlusTreeMetadata metadata, BufferManager bufferManager, List<DataBox> keys,
+    LeafNode(BPlusTreeMetadata metadata, BufferManager bufferManager, List<Pair<DataBox, RecordId>> keys,
              List<RecordId> rids, Optional<Long> rightSibling, LockContext treeContext) {
         this(metadata, bufferManager, bufferManager.fetchNewPage(treeContext, metadata.getPartNum()),
                 keys, rids,
@@ -123,7 +123,7 @@ class LeafNode extends BPlusNode {
      * Construct a leaf node that is persisted to page `page`.
      */
     private LeafNode(BPlusTreeMetadata metadata, BufferManager bufferManager, Page page,
-                     List<DataBox> keys,
+                     List<Pair<DataBox, RecordId>> keys,
                      List<RecordId> rids, Optional<Long> rightSibling, LockContext treeContext) {
         try {
             assert (keys.size() == rids.size());
@@ -160,17 +160,22 @@ class LeafNode extends BPlusNode {
 
     // See BPlusNode.put.
     @Override
-    public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
+    public Optional<Pair<Pair<DataBox,RecordId >, Long>> put(DataBox key, RecordId rid) {
         // TODO(proj2): implement
-        int index = keys.indexOf(key);
-
-        // Key already exists
-        if (index != -1) {
-            throw new BPlusTreeException("Attempted to insert an already existing key.");
+        int index = -1;
+        for (int i = 0; i < keys.size(); i++) {
+            if (keys.get(i).getFirst().compareTo(key) == 0 && keys.get(i).getSecond().compareTo(rid) == 0) {
+                index = i;
+            }
         }
 
-        index = InnerNode.numLessThan(key, keys); // index to insert
-        keys.add(index, key);
+        // Exact key and recordId already exists
+        if (index != -1) {
+            throw new BPlusTreeException("Attempted to insert an already existing key + rid.");
+        }
+
+        index = InnerNode.numLessThanEqualLeaf(key, keys); // index to insert
+        keys.add(index, new Pair<>(key, rid));
         rids.add(index, rid);
 
         // Not going to overflow case
@@ -181,7 +186,7 @@ class LeafNode extends BPlusNode {
 
         // Overflow case
         // Distribute the data
-        List<DataBox> rightKeys = new ArrayList<>();
+        List<Pair<DataBox, RecordId>> rightKeys = new ArrayList<>();
         List<RecordId> rightRIDs = new ArrayList<>();
 
         for (int i = 0; i < metadata.getOrder() + 1; i++) {
@@ -200,7 +205,7 @@ class LeafNode extends BPlusNode {
 
     // See BPlusNode.bulkLoad.
     @Override
-    public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<DataBox, RecordId>> data,
+    public Optional<Pair<Pair<DataBox, RecordId>, Long>> bulkLoad(Iterator<Pair<Pair<DataBox, RecordId>, RecordId>> data,
                                                   float fillFactor) {
         // TODO(proj2): implement
 
@@ -208,7 +213,7 @@ class LeafNode extends BPlusNode {
             if (keys.size() >= Math.ceil(fillFactor * metadata.getOrder() * 2) + 1) {
                 // split node
 
-                List<DataBox> rightKeys = new ArrayList<>();
+                List<Pair<DataBox, RecordId>> rightKeys = new ArrayList<>();
                 List<RecordId> rightRIDs = new ArrayList<>();
 
                 rightKeys.add(keys.remove(keys.size() - 1));
@@ -224,7 +229,7 @@ class LeafNode extends BPlusNode {
             } else {
                 // keep adding to leaf node
 
-                Pair<DataBox, RecordId> curr = data.next();
+                Pair<Pair<DataBox, RecordId>, RecordId> curr = data.next();
 
                 keys.add(curr.getFirst());
                 rids.add(curr.getSecond());
@@ -239,19 +244,30 @@ class LeafNode extends BPlusNode {
     @Override
     public void remove(DataBox key) {
         // TODO(proj2): implement
-        int index = keys.indexOf(key);
-        if (index != -1) {
-            keys.remove(index);
-            rids.remove(index);
+        boolean removedAnElement = false;
+        for (int i = 0; i < keys.size(); i++) {
+            if (keys.get(i).getFirst().compareTo(key) == 0) {
+                keys.remove(keys.get(i));
+                rids.remove(keys.get(i).getSecond());
+                removedAnElement = true;
+            }
+        }
+        if (removedAnElement) {
             sync();
         }
     }
 
     // Iterators ///////////////////////////////////////////////////////////////
     /** Return the record id associated with `key`. */
-    Optional<RecordId> getKey(DataBox key) {
-        int index = keys.indexOf(key);
-        return index == -1 ? Optional.empty() : Optional.of(rids.get(index));
+    ArrayList<RecordId> getKey(DataBox key) {
+        ArrayList<RecordId> results = new ArrayList<>();
+        for (int i = 0; i < keys.size(); i++) {
+            if (keys.get(i).getFirst().compareTo(key) == 0) {
+                results.add(rids.get(i));
+            }
+        }
+
+        return results;
     }
 
     /**
@@ -268,7 +284,7 @@ class LeafNode extends BPlusNode {
      * returned in ascending order of their corresponding keys.
      */
     Iterator<RecordId> scanGreaterEqual(DataBox key) {
-        int index = InnerNode.numLessThan(key, keys);
+        int index = InnerNode.numLessThanLeaf(key, keys);
         return rids.subList(index, rids.size()).iterator();
     }
 
@@ -305,7 +321,7 @@ class LeafNode extends BPlusNode {
     }
 
     // Just for testing.
-    List<DataBox> getKeys() {
+    List<Pair<DataBox, RecordId>> getKeys() {
         return keys;
     }
 
@@ -424,7 +440,7 @@ class LeafNode extends BPlusNode {
         buf.putLong(rightSibling.orElse(-1L));
         buf.putInt(keys.size());
         for (int i = 0; i < keys.size(); ++i) {
-            buf.put(keys.get(i).toBytes());
+            buf.put(keys.get(i).getFirst().toBytes());
             buf.put(rids.get(i).toBytes());
         }
         return buf.array();
@@ -456,12 +472,14 @@ class LeafNode extends BPlusNode {
 
         int n = buf.getInt();
 
-        List<DataBox> keys = new ArrayList<>();
+        List<Pair<DataBox, RecordId>> keys = new ArrayList<>();
         List<RecordId> rids = new ArrayList<>();
 
         for (int i = 0; i < n; ++i) {
-            keys.add(DataBox.fromBytes(buf, metadata.getKeySchema()));
-            rids.add(RecordId.fromBytes(buf));
+            DataBox tempKey = DataBox.fromBytes(buf, metadata.getKeySchema());
+            RecordId tempRID = RecordId.fromBytes(buf);
+            keys.add(new Pair<>(tempKey, tempRID));
+            rids.add(tempRID);
         }
 
         return new LeafNode(metadata, bufferManager, page,
