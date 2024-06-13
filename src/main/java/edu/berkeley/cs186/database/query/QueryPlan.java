@@ -628,6 +628,11 @@ public class QueryPlan {
         allJoins.add(new GHJOperator(leftOp, rightOp, leftColumn, rightColumn, this.transaction));
         allJoins.add(new SHJOperator(leftOp, rightOp, leftColumn, rightColumn, this.transaction));
         allJoins.add(new LFJOperator(leftOp, rightOp, leftColumn, rightColumn, this.transaction));
+        ArrayList<String> lftjColumnLeft = new ArrayList<>();
+        lftjColumnLeft.add(leftColumn);
+        ArrayList<String> lftjColumnRight = new ArrayList<>();
+        lftjColumnRight.add(rightColumn);
+        allJoins.add(new LFTJOperator(leftOp, rightOp, lftjColumnLeft, lftjColumnRight, this.transaction));
         if (transaction.indexExists(rightTable, rightColumn)) {
             allJoins.add(new INLJOperator(leftOp, rightOp, leftColumn, rightColumn, this.transaction, rightTable));
         }
