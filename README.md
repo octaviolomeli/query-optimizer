@@ -4,9 +4,9 @@
 The improvements I have added are:
 
 - Implemented LIFO and MRU buffer replacement policies
-- Implemented INLJ, LeapfrogJoin
+- Implemented INLJ, LeapfrogJoin, Sort-Merge Join, Grace Hash Join
 - Implemented LeapfrogTriejoin which allows joins on multiple columns
 - Duplicate record support in LeapfrogJoin and LeapfrogTriejoin (original paper didn't address it)
-- Duplicate key support in the B+ Tree
+- Duplicate key support in the B+ Tree Index Structure
 
 Inspiration for LFTJ and LFJ: https://arxiv.org/abs/1210.0481
