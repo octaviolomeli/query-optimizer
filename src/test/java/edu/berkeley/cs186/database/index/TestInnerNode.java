@@ -91,13 +91,13 @@ public class TestInnerNode {
     private List<DataBox> innerKeys;
     private List<Long> innerChildren;
     private InnerNode inner;
-    private List<DataBox> keys0;
+    private List<Pair<DataBox, RecordId>> keys0;
     private List<RecordId> rids0;
     private long leaf0;
-    private List<DataBox> keys1;
+    private List<Pair<DataBox, RecordId>> keys1;
     private List<RecordId> rids1;
     private long leaf1;
-    private List<DataBox> keys2;
+    private List<Pair<DataBox, RecordId>> keys2;
     private List<RecordId> rids2;
     private long leaf2;
 
@@ -112,14 +112,15 @@ public class TestInnerNode {
         setBPlusTreeMetadata(Type.intType(), 2);
 
         // Leaf 2
-        List<DataBox> keys2 = new ArrayList<>();
-        keys2.add(new IntDataBox(21));
-        keys2.add(new IntDataBox(22));
-        keys2.add(new IntDataBox(23));
         List<RecordId> rids2 = new ArrayList<>();
         rids2.add(new RecordId(21, (short) 21));
         rids2.add(new RecordId(22, (short) 22));
         rids2.add(new RecordId(23, (short) 23));
+
+        List<Pair<DataBox, RecordId>> keys2 = new ArrayList<>();
+        keys2.add(new Pair<>(new IntDataBox(21), rids2.get(0)));
+        keys2.add(new Pair<>(new IntDataBox(22), rids2.get(1)));
+        keys2.add(new Pair<>(new IntDataBox(23), rids2.get(2)));
         Optional<Long> sibling2 = Optional.empty();
         LeafNode leaf2 = new LeafNode(metadata, bufferManager, keys2, rids2, sibling2, treeContext);
 
@@ -128,14 +129,15 @@ public class TestInnerNode {
         this.leaf2 = leaf2.getPage().getPageNum();
 
         // Leaf 1
-        keys1 = new ArrayList<>();
-        keys1.add(new IntDataBox(11));
-        keys1.add(new IntDataBox(12));
-        keys1.add(new IntDataBox(13));
-        rids1 = new ArrayList<>();
+        List<RecordId> rids1 = new ArrayList<>();
         rids1.add(new RecordId(11, (short) 11));
         rids1.add(new RecordId(12, (short) 12));
         rids1.add(new RecordId(13, (short) 13));
+
+        List<Pair<DataBox, RecordId>> keys1 = new ArrayList<>();
+        keys1.add(new Pair<>(new IntDataBox(11), rids1.get(0)));
+        keys1.add(new Pair<>(new IntDataBox(12), rids1.get(1)));
+        keys1.add(new Pair<>(new IntDataBox(13), rids1.get(2)));
         Optional<Long> sibling1 = Optional.of(leaf2.getPage().getPageNum());
         LeafNode leaf1 = new LeafNode(metadata, bufferManager, keys1, rids1, sibling1, treeContext);
 
@@ -144,14 +146,16 @@ public class TestInnerNode {
         this.leaf1 = leaf1.getPage().getPageNum();
 
         // Leaf 0
-        List<DataBox> keys0 = new ArrayList<>();
-        keys0.add(new IntDataBox(1));
-        keys0.add(new IntDataBox(2));
-        keys0.add(new IntDataBox(3));
         List<RecordId> rids0 = new ArrayList<>();
         rids0.add(new RecordId(1, (short) 1));
         rids0.add(new RecordId(2, (short) 2));
         rids0.add(new RecordId(3, (short) 3));
+
+        List<Pair<DataBox, RecordId>> keys0 = new ArrayList<>();
+        keys0.add(new Pair<>(new IntDataBox(1), rids0.get(0)));
+        keys0.add(new Pair<>(new IntDataBox(2), rids0.get(1)));
+        keys0.add(new Pair<>(new IntDataBox(3), rids0.get(2)));
+
         Optional<Long> sibling0 = Optional.of(leaf1.getPage().getPageNum());
         LeafNode leaf0 = new LeafNode(metadata, bufferManager, keys0, rids0, sibling0, treeContext);
         this.keys0 = new ArrayList<>(keys0);
@@ -242,7 +246,7 @@ public class TestInnerNode {
         key = new IntDataBox(0);
         rid = new RecordId(0, (short) 0);
         assertEquals(Optional.empty(), inner.put(key, rid));
-        keys0.add(0, key);
+        keys0.add(0, new Pair<>(key, rid));
         rids0.add(0, rid);
         checkTreeMatchesExpectations();
 
@@ -250,7 +254,7 @@ public class TestInnerNode {
         key = new IntDataBox(14);
         rid = new RecordId(14, (short) 14);
         assertEquals(Optional.empty(), inner.put(key, rid));
-        keys1.add(3, key);
+        keys1.add(3, new Pair<>(key, rid));
         rids1.add(3, rid);
         checkTreeMatchesExpectations();
 
@@ -258,7 +262,7 @@ public class TestInnerNode {
         key = new IntDataBox(20);
         rid = new RecordId(20, (short) 20);
         assertEquals(Optional.empty(), inner.put(key, rid));
-        keys2.add(0, key);
+        keys2.add(0, new Pair<>(key, rid));
         rids2.add(0, rid);
         checkTreeMatchesExpectations();
     }

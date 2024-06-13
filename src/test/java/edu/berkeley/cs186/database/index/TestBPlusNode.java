@@ -3,6 +3,7 @@ package edu.berkeley.cs186.database.index;
 import edu.berkeley.cs186.database.TimeoutScaling;
 import edu.berkeley.cs186.database.categories.Proj2Tests;
 import edu.berkeley.cs186.database.categories.PublicTests;
+import edu.berkeley.cs186.database.common.Pair;
 import edu.berkeley.cs186.database.concurrency.DummyLockContext;
 import edu.berkeley.cs186.database.concurrency.LockContext;
 import edu.berkeley.cs186.database.databox.DataBox;
@@ -65,11 +66,12 @@ public class TestBPlusNode {
         // This test should be passing after you implement LeafNode::fromBytes
 
         // Leaf node.
-        List<DataBox> leafKeys = new ArrayList<>();
+        List<Pair<DataBox, RecordId>> leafKeys = new ArrayList<>();
         List<RecordId> leafRids = new ArrayList<>();
         for (int i = 0; i < 2 * ORDER; ++i) {
-            leafKeys.add(new IntDataBox(i));
-            leafRids.add(new RecordId(i, (short) i));
+            RecordId tempRID = new RecordId(i, (short) i);
+            leafKeys.add(new Pair<>(new IntDataBox(i), tempRID));
+            leafRids.add(tempRID);
         }
         LeafNode leaf = new LeafNode(metadata, bufferManager, leafKeys, leafRids, Optional.of(42L),
                                      treeContext);

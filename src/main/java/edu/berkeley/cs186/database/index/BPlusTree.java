@@ -120,7 +120,7 @@ public class BPlusTree {
             // on the tree
             LockUtil.ensureSufficientLockHeld(lockContext, LockType.X);
             // Construct the root.
-            List<DataBox> keys = new ArrayList<>();
+            List<Pair<DataBox, RecordId>> keys = new ArrayList<>();
             List<RecordId> rids = new ArrayList<>();
             Optional<Long> rightSibling = Optional.empty();
             this.updateRoot(new LeafNode(this.metadata, bufferManager, keys, rids, rightSibling, lockContext));
@@ -140,7 +140,7 @@ public class BPlusTree {
      *   tree.get(key);                 // Optional.of(rid)
      *   tree.get(new IntDataBox(100)); // Optional.empty()
      */
-    public Optional<RecordId> get(DataBox key) {
+    public ArrayList<RecordId> get(DataBox key) {
         typecheck(key);
         // TODO(proj4_integration): Update the following line
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
@@ -162,11 +162,9 @@ public class BPlusTree {
         // TODO(proj4_integration): Update the following line
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
-        Optional<RecordId> rid = get(key);
-        if (rid.isPresent()) {
-            ArrayList<RecordId> l = new ArrayList<>();
-            l.add(rid.get());
-            return l.iterator();
+        ArrayList<RecordId> rid = get(key);
+        if (!rid.isEmpty()) {
+            return rid.iterator();
         } else {
             return Collections.emptyIterator();
         }
@@ -294,7 +292,7 @@ public class BPlusTree {
      * The behavior of this method should be similar to that of InnerNode's
      * bulkLoad (see comments in BPlusNode.bulkLoad).
      */
-    public void bulkLoad(Iterator<Pair<DataBox, RecordId>> data, float fillFactor) {
+    public void bulkLoad(Iterator<Pair<Pair<DataBox, RecordId>, RecordId>> data, float fillFactor) {
         // TODO(proj4_integration): Update the following line
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
@@ -465,7 +463,7 @@ public class BPlusTree {
             currentLeaf = Optional.of(root.get(key));
             currentRIDs = currentLeaf.get().scanAll();
             // Calculate how much of the current RIDs to get rid of
-            int index = InnerNode.numLessThan(key, currentLeaf.get().getKeys());
+            int index = InnerNode.numLessThanLeaf(key, currentLeaf.get().getKeys());
             for (int i = 0; i < index; i++) {
                 currentRIDs.next();
             }

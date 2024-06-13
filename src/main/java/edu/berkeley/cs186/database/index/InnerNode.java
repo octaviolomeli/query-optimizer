@@ -135,7 +135,7 @@ class InnerNode extends BPlusNode {
 
     // See BPlusNode.bulkLoad.
     @Override
-    public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<DataBox, RecordId>> data,
+    public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<Pair<DataBox, RecordId>, RecordId>> data,
                                                   float fillFactor) {
         // TODO(proj2): implement
 
@@ -279,6 +279,18 @@ class InnerNode extends BPlusNode {
      * Not coincidentally, there are also 3 values less than or equal to c (i.e.
      * a, b, c).
      */
+    static <T extends Comparable<T>> int numLessThanEqualLeaf(T x, List<Pair<T, RecordId>> ys) {
+        int n = 0;
+        for (Pair<T, RecordId> y : ys) {
+            if (y.getFirst().compareTo(x) <= 0) {
+                ++n;
+            } else {
+                break;
+            }
+        }
+        return n;
+    }
+
     static <T extends Comparable<T>> int numLessThanEqual(T x, List<T> ys) {
         int n = 0;
         for (T y : ys) {
@@ -295,6 +307,18 @@ class InnerNode extends BPlusNode {
         int n = 0;
         for (T y : ys) {
             if (y.compareTo(x) < 0) {
+                ++n;
+            } else {
+                break;
+            }
+        }
+        return n;
+    }
+
+    static <T extends Comparable<T>> int numLessThanLeaf(T x, List<Pair<T, RecordId>> ys) {
+        int n = 0;
+        for (Pair<T, RecordId> y : ys) {
+            if (y.getFirst().compareTo(x) < 0) {
                 ++n;
             } else {
                 break;

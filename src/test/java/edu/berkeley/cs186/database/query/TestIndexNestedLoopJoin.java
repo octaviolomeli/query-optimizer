@@ -129,6 +129,67 @@ public class TestIndexNestedLoopJoin {
     }
 
     @Test
+    public void testAllMatchesSameKeyINLJ() {
+        try(Transaction transaction1 = d.beginTransaction()) {
+            Schema s = new Schema()
+                    .add("id", Type.intType())
+                    .add("a", Type.intType())
+                    .add("b", Type.intType());
+            transaction1.createTable(s, "table1");
+            transaction1.createTable(s, "table2");
+            // Table 1
+            transaction1.insert("table1", 1, 2, 3);
+            transaction1.insert("table1", 1, 5, 5);
+            transaction1.insert("table1", 1, 4, 4);
+            transaction1.insert("table1", 1, 9, 9);
+            // Table 2
+            transaction1.insert("table2", 1, 2, 3);
+            transaction1.insert("table2", 1, 2, 2);
+            transaction1.insert("table2", 1, 1, 1);
+
+            transaction1.createIndex("table2", "id", false);
+        }
+        try(Transaction transaction2 = d.beginTransaction()) {
+            List<Record> expectedValues = new ArrayList<>();
+            expectedValues.add((new Record(1, 2, 3)).concat(new Record(1, 1, 1)));
+            expectedValues.add((new Record(1, 2, 3)).concat(new Record(1, 2, 2)));
+            expectedValues.add((new Record(1, 2, 3)).concat(new Record(1, 2, 3)));
+
+            expectedValues.add((new Record(1, 5, 5)).concat(new Record(1, 1, 1)));
+            expectedValues.add((new Record(1, 5, 5)).concat(new Record(1, 2, 2)));
+            expectedValues.add((new Record(1, 5, 5)).concat(new Record(1, 2, 3)));
+
+            expectedValues.add((new Record(1, 4, 4)).concat(new Record(1, 1, 1)));
+            expectedValues.add((new Record(1, 4, 4)).concat(new Record(1, 2, 2)));
+            expectedValues.add((new Record(1, 4, 4)).concat(new Record(1, 2, 3)));
+
+            expectedValues.add((new Record(1, 9, 9)).concat(new Record(1, 1, 1)));
+            expectedValues.add((new Record(1, 9, 9)).concat(new Record(1, 2, 2)));
+            expectedValues.add((new Record(1, 9, 9)).concat(new Record(1, 2, 3)));
+
+            // FROM table1 AS t1
+            QueryPlan queryPlan = transaction2.query("table1", "t1");
+            // JOIN table1 AS t2 ON t1.lastName = t2.lastName
+            queryPlan.join("table2", "t2", "t1.id", "t2.id");
+            // SELECT t1.id, t2.id, t1.firstName, t2.firstName, t1.lastName
+            queryPlan.select("t2.id", PredicateOperator.GREATER_THAN_EQUALS, 0);
+            queryPlan.project("t1.id", "t2.id");
+            // run the query
+            Iterator<Record> iter = queryPlan.indexTestExecute();
+
+            int numRecords = 0;
+
+            while (iter.hasNext() && numRecords < expectedValues.size()) {
+                assertEquals("mismatch at record " + numRecords, expectedValues.get(numRecords), iter.next());
+                numRecords++;
+            }
+
+            assertFalse("too many records", iter.hasNext());
+            assertEquals("too few records", expectedValues.size(), numRecords);
+        }
+    }
+
+    @Test
     // The point of using a source with increasing gaps is to test out the iterators' seek function
     public void testSomeMatchesINLJ() {
         try(Transaction transaction1 = d.beginTransaction()) {
@@ -141,18 +202,9 @@ public class TestIndexNestedLoopJoin {
 
             List<Integer> numbersInSource1 = new ArrayList<>();
             List<Integer> numbersInSource2 = new ArrayList<>();
-            List<Integer> expectedValues = new ArrayList<>();
 
             for (int i = 1; i <= 50 * 3; i+= 3) numbersInSource1.add(i);
             for (int i = 1; i <= 25 * 9; i+= 9) numbersInSource2.add(i);
-
-            for (Integer integer : numbersInSource1) {
-                for (Integer value : numbersInSource2) {
-                    if (integer.equals(value)) {
-                        expectedValues.add(integer);
-                    }
-                }
-            }
 
             Collections.shuffle(numbersInSource2);
             for (Integer integer : numbersInSource1) {
@@ -181,7 +233,6 @@ public class TestIndexNestedLoopJoin {
                 }
             }
 
-
             // FROM table1 AS t1
             QueryPlan queryPlan = transaction2.query("table1", "t1");
             // JOIN table1 AS t2 ON t1.lastName = t2.lastName
@@ -202,6 +253,65 @@ public class TestIndexNestedLoopJoin {
                 record2 = new Record(expectedValues.get(numRecords), "Jane", "Doe");
                 expected = record1.concat(record2);
                 assertEquals("mismatch at record " + numRecords, expected, iter.next());
+                numRecords++;
+            }
+
+            assertFalse("too many records", iter.hasNext());
+            assertEquals("too few records", expectedValues.size(), numRecords);
+        }
+    }
+
+    @Test
+    public void testSomeMatchesDuplicateKeysINLJ() {
+        try(Transaction transaction1 = d.beginTransaction()) {
+            Schema s = new Schema()
+                    .add("id", Type.intType())
+                    .add("a", Type.intType())
+                    .add("b", Type.intType());
+            transaction1.createTable(s, "table1");
+            transaction1.createTable(s, "table2");
+            // Table 1
+            transaction1.insert("table1", 1, 2, 3);
+            transaction1.insert("table1", 1, 5, 5);
+            transaction1.insert("table1", 2, 4, 4);
+            transaction1.insert("table1", 7, 7, 7);
+            transaction1.insert("table1", 3, 9, 9);
+            // Table 2
+            transaction1.insert("table2", 1, 2, 3);
+            transaction1.insert("table2", 1, 2, 2);
+            transaction1.insert("table2", 1, 1, 1);
+            transaction1.insert("table2", 2, 2, 2);
+            transaction1.insert("table2", 3, 4, 4);
+            transaction1.insert("table2", 3, 3, 3);
+
+            transaction1.createIndex("table2", "id", false);
+        }
+        try(Transaction transaction2 = d.beginTransaction()) {
+            List<Record> expectedValues = new ArrayList<>();
+            expectedValues.add((new Record(1, 2, 3)).concat(new Record(1, 1, 1)));
+            expectedValues.add((new Record(1, 2, 3)).concat(new Record(1, 2, 2)));
+            expectedValues.add((new Record(1, 2, 3)).concat(new Record(1, 2, 3)));
+            expectedValues.add((new Record(1, 5, 5)).concat(new Record(1, 1, 1)));
+            expectedValues.add((new Record(1, 5, 5)).concat(new Record(1, 2, 2)));
+            expectedValues.add((new Record(1, 5, 5)).concat(new Record(1, 2, 3)));
+            expectedValues.add((new Record(2, 4, 4)).concat(new Record(2, 2, 2)));
+            expectedValues.add((new Record(3, 9, 9)).concat(new Record(3, 3, 3)));
+            expectedValues.add((new Record(3, 9, 9)).concat(new Record(3, 4, 4)));
+
+            // FROM table1 AS t1
+            QueryPlan queryPlan = transaction2.query("table1", "t1");
+            // JOIN table1 AS t2 ON t1.lastName = t2.lastName
+            queryPlan.join("table2", "t2", "t1.id", "t2.id");
+            // SELECT t1.id, t2.id, t1.firstName, t2.firstName, t1.lastName
+            queryPlan.select("t2.id", PredicateOperator.GREATER_THAN_EQUALS, 0);
+            queryPlan.project("t1.id", "t2.id");
+            // run the query
+            Iterator<Record> iter = queryPlan.indexTestExecute();
+
+            int numRecords = 0;
+
+            while (iter.hasNext() && numRecords < expectedValues.size()) {
+                assertEquals("mismatch at record " + numRecords, expectedValues.get(numRecords), iter.next());
                 numRecords++;
             }
 
