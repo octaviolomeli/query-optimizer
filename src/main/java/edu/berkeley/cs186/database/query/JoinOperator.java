@@ -47,11 +47,11 @@ public abstract class JoinOperator extends QueryOperator {
      * @param rightColumnNames the column(s) to join on from rightSource
      */
     public JoinOperator(QueryOperator leftSource,
-                 QueryOperator rightSource,
-                 ArrayList<String> leftColumnNames,
-                 ArrayList<String> rightColumnNames,
-                 TransactionContext transaction,
-                 JoinType joinType) {
+                        QueryOperator rightSource,
+                        ArrayList<String> leftColumnNames,
+                        ArrayList<String> rightColumnNames,
+                        TransactionContext transaction,
+                        JoinType joinType) {
         super(OperatorType.JOIN);
         this.joinType = joinType;
         this.leftSource = leftSource;
@@ -67,7 +67,7 @@ public abstract class JoinOperator extends QueryOperator {
     @Override
     public QueryOperator getSource() {
         throw new RuntimeException("There is no single source for join operators. use " +
-                                     "getRightSource and getLeftSource and the corresponding set methods.");
+                "getRightSource and getLeftSource and the corresponding set methods.");
     }
 
     @Override
@@ -210,6 +210,48 @@ public abstract class JoinOperator extends QueryOperator {
             DataBox rightRecordValue = rightRecord.getValue(rightColumnIndexes.get(i));
 
             int compareValue = leftRecordValue.compareTo(rightRecordValue);
+            if (compareValue == 0) {
+                comparisons[1] += 1;
+            } else if (compareValue < 0) {
+                comparisons[0] += 1;
+            } else {
+                comparisons[2] += 1;
+            }
+        }
+
+        if (comparisons[2] > comparisons[1] && comparisons[2] > comparisons[0]) {
+            return 1;
+        }  else if (comparisons[1] > comparisons[2] && comparisons[1] > comparisons[0]) {
+            return 0;
+        }
+        return -1;
+    }
+
+    /*
+        Compare method specifically for LFJO since it is unknown if recordX is from
+        the left source or right.
+
+        int recordXpIndex: The index used to index into the iter list for recordX.
+        boolean isZeroLeft: Is index 0 in iter the left source?
+    */
+    public int LFJOcompare(Record recordX, Record recordY, int recordXpIndex, boolean isZeroLeft) {
+        int multipler = 1;
+        // Ensure recordX is from left source and recordY is from right source
+        if ((recordXpIndex == 0 && !isZeroLeft) || (recordXpIndex == 1 && isZeroLeft)) {
+            Record tempRecord = recordX;
+            recordX = recordY;
+            recordY = tempRecord;
+            multipler = -1;
+        }
+
+        // 0 = negative, 1 = equal, 2 = positive
+        int [] comparisons = new int[]{0, 0, 0};
+
+        for (int i = 0; i < leftColumnIndexes.size(); i++) {
+            DataBox leftRecordValue = recordX.getValue(leftColumnIndexes.get(i));
+            DataBox rightRecordValue = recordY.getValue(rightColumnIndexes.get(i));
+
+            int compareValue = leftRecordValue.compareTo(rightRecordValue) * multipler;
             if (compareValue == 0) {
                 comparisons[1] += 1;
             } else if (compareValue < 0) {

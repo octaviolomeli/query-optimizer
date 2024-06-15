@@ -51,7 +51,7 @@ public class LFJOperator extends JoinOperator {
 
     @Override
     public Iterator<Record> iterator() {
-        return new LeapfrogJoinIterator(this);
+        return new LeapfrogJoinIterator();
     }
 
     @Override
@@ -73,11 +73,12 @@ public class LFJOperator extends JoinOperator {
         private final LeapfrogIterator[] iters;
         // Stores duplicates to return
         private final ArrayList<Record> savedRecordsToReturn;
+        private boolean isZeroLeftSource;
 
-        private LeapfrogJoinIterator(LFJOperator lfo) {
+        private LeapfrogJoinIterator() {
             super();
-            LeapfrogIterator leftIterator = new LeapfrogIterator(getLeftSource(), lfo);
-            LeapfrogIterator rightIterator = new LeapfrogIterator(getRightSource(), lfo);
+            LeapfrogIterator leftIterator = new LeapfrogIterator(getLeftSource());
+            LeapfrogIterator rightIterator = new LeapfrogIterator(getRightSource());
 
             savedRecordsToReturn = new ArrayList<>();
             iters = new LeapfrogIterator[2];
@@ -90,9 +91,12 @@ public class LFJOperator extends JoinOperator {
          */
         @Override
         public boolean hasNext() {
-            if (this.nextRecord == null && !this.savedRecordsToReturn.isEmpty()){
+            if (this.atEnd) {
+                return false;
+            }
+            if (this.nextRecord == null && !this.savedRecordsToReturn.isEmpty()) {
                 this.nextRecord = savedRecordsToReturn.remove(0);
-            } else if (this.nextRecord == null){
+            } else if (this.nextRecord == null) {
                 this.nextRecord = leapfrog_next();
             }
             return this.nextRecord != null;
@@ -117,12 +121,15 @@ public class LFJOperator extends JoinOperator {
                 return;
             }
             this.atEnd = false;
+
             if (compare(leftIterator.key(), rightIterator.key()) < 0) {
                 iters[0] = leftIterator;
                 iters[1] = rightIterator;
+                this.isZeroLeftSource = true;
             } else {
                 iters[0] = rightIterator;
                 iters[1] = leftIterator;
+                this.isZeroLeftSource = false;
             }
             p = 0;
             nextRecord = leapfrog_search();
@@ -137,13 +144,14 @@ public class LFJOperator extends JoinOperator {
                     this.atEnd = true;
                     return null;
                 }
-                if (compare(x, y) == 0) {
+
+                if (LFJOcompare(x, y, p, isZeroLeftSource) == 0) {
                     // All iters at same key
-                    for (Integer indexX : iters[p].indicesWithValue(x)) {
-                        for (Integer indexY : iters[Math.floorMod(p - 1, 2)].indicesWithValue(y)) {
+                    for (Integer indexX : iters[p].indicesWithValue(x, p, isZeroLeftSource)) {
+                        for (Integer indexY : iters[Math.floorMod(p - 1, 2)].indicesWithValue(y, Math.floorMod(p - 1, 2), isZeroLeftSource)) {
                             this.savedRecordsToReturn.add(
                                     iters[p].keyAt(indexX)
-                                    .concat(iters[Math.floorMod(p - 1, 2)].keyAt(indexY)));
+                                            .concat(iters[Math.floorMod(p - 1, 2)].keyAt(indexY)));
                             iters[p].resetToIndex(indexX);
                             iters[Math.floorMod(p - 1, 2)].resetToIndex(indexY);
                         }
@@ -151,7 +159,7 @@ public class LFJOperator extends JoinOperator {
 
                     return savedRecordsToReturn.remove(0);
                 } else {
-                    iters[p].seek(y);
+                    iters[p].seek(y, p, isZeroLeftSource);
                     if (iters[p].atEnd()) {
                         this.atEnd = true;
                         return null;
@@ -177,29 +185,14 @@ public class LFJOperator extends JoinOperator {
                 return leapfrog_search();
             }
         }
-
-        // Finds first element in common which is ≥ seekKey
-        /*
-        public void leapfrog_seek(int seekKey) {
-            iters[p].seek(seekKey);
-            if (iters[p].atEnd()) {
-                this.atEnd = true;
-            } else {
-                p = (p + 1) % 2;
-                leapfrog_search();
-            }
-        }
-         */
     }
 
     // Iterator for one source. Helper iterator for LeapfrogJoinIterator.
-    private static class LeapfrogIterator {
+    private class LeapfrogIterator {
         private int index;
-        LFJOperator outsideOperator;
         ArrayList<Record> sourceList = new ArrayList<>();
 
-        private LeapfrogIterator(QueryOperator recordSource, LFJOperator outsideOperator) {
-            this.outsideOperator = outsideOperator;
+        private LeapfrogIterator(QueryOperator recordSource) {
             recordSource.iterator().forEachRemaining(sourceList::add);
             this.index = 0;
         }
@@ -220,14 +213,13 @@ public class LFJOperator extends JoinOperator {
         /*
             Position the iterator at a least upper bound for seekKey.
             i.e. the least key ≥ seekKey, or move to end if no such key exists.
-
             Sought key must be ≥ the key at the current position.
         */
-        public void seek(Record seekKey) {
+        public void seek(Record seekKey, int p, boolean isZeroLeftSource) {
             if (seekKey == null || key() == null) {
                 return;
             }
-            if (outsideOperator.compare(seekKey, key()) <= 0) {
+            if (LFJOcompare(key(), seekKey, p, isZeroLeftSource) >= 0) {
                 return;
             }
 
@@ -237,7 +229,7 @@ public class LFJOperator extends JoinOperator {
 
             while (low <= high) {
                 int mid = (low + high) / 2;
-                if (outsideOperator.compare(sourceList.get(mid), seekKey) < 0) {
+                if (LFJOcompare(sourceList.get(mid), seekKey, p, isZeroLeftSource) < 0) {
                     low = mid + 1;
                 } else {
                     high = mid - 1;
@@ -263,9 +255,9 @@ public class LFJOperator extends JoinOperator {
         }
 
         // Given a value, return list of indices in sourceList that have that value.
-        public List<Integer> indicesWithValue(Record seekValue) {
+        public List<Integer> indicesWithValue(Record seekValue, int p, boolean isZeroLeftSource) {
             List<Integer> indices = new ArrayList<>();
-            int startIndex = binarySearch(seekValue);
+            int startIndex = binarySearch(seekValue, p, isZeroLeftSource);
 
             if (startIndex < 0) {
                 // Value not found
@@ -274,12 +266,13 @@ public class LFJOperator extends JoinOperator {
 
             // Expand to find all occurrences
             int left = startIndex;
-            while (left >= 0 && outsideOperator.compare(sourceList.get(left), seekValue) == 0) {
+            while (left >= 0 && LFJOcompare(sourceList.get(left), seekValue, p, isZeroLeftSource) == 0) {
                 indices.add(left);
                 left--;
             }
+
             int right = startIndex + 1;
-            while (right < sourceList.size() && outsideOperator.compare(sourceList.get(right), seekValue) == 0) {
+            while (right < sourceList.size() && LFJOcompare(sourceList.get(right), seekValue, p, isZeroLeftSource) == 0) {
                 indices.add(right);
                 right++;
             }
@@ -288,13 +281,13 @@ public class LFJOperator extends JoinOperator {
             return indices;
         }
 
-        private int binarySearch(Record value) {
+        private int binarySearch(Record value, int p, boolean isZeroLeftSource) {
             int left = 0;
             int right = sourceList.size() - 1;
 
             while (left <= right) {
                 int mid = left + (right - left) / 2;
-                int cmp = outsideOperator.compare(sourceList.get(mid), value);
+                int cmp = LFJOcompare(sourceList.get(mid), value, p, isZeroLeftSource);
 
                 if (cmp < 0) {
                     left = mid + 1;
@@ -302,7 +295,7 @@ public class LFJOperator extends JoinOperator {
                     right = mid - 1;
                 } else {
                     // Ensure finding the first occurrence
-                    if (mid == 0 || outsideOperator.compare(sourceList.get(mid - 1), value) != 0) {
+                    if (mid == 0 || LFJOcompare(sourceList.get(mid - 1), value, p, isZeroLeftSource) != 0) {
                         return mid;
                     } else {
                         right = mid - 1;
